@@ -1,0 +1,29 @@
+From ecb9b5fc132778582751ffa413239b95251cb32a Mon Sep 17 00:00:00 2001
+From: George Li <gli@intrinsyc.com>
+Date: Wed, 8 Jan 2020 13:25:58 -0800
+Subject: [PATCH 333/334] [10667] Bring-up OSD panel (CMI TFT Cell and ILI9806E
+ LCD Driver)
+
+-fix the HDMI fliped issue
+
+Change-Id: I2fd902d6949f97a395e5a34b6bb972d88916e54a
+---
+ drivers/gpu/drm/panel/panel-lcd-ili9806e.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/panel/panel-lcd-ili9806e.c b/drivers/gpu/drm/panel/panel-lcd-ili9806e.c
+index 1b3e3bf30fa8..a07ce688fc70 100644
+--- a/drivers/gpu/drm/panel/panel-lcd-ili9806e.c
++++ b/drivers/gpu/drm/panel/panel-lcd-ili9806e.c
+@@ -792,7 +792,7 @@ static int __maybe_unused osd_panel_set_Vflip(struct drm_panel *panel)
+ 	{
+ 		drm_for_each_plane(plane, dev)
+ 		{
+-			if (plane->rotation_property)
++			if (plane->rotation_property && !strcmp(plane->name, "plane-0"))
+ 			{
+ 				plane->funcs->atomic_set_property(plane, NULL,
+ 							plane->rotation_property, DRM_MODE_REFLECT_Y);
+-- 
+2.24.1
+

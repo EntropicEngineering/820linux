@@ -1,0 +1,30 @@
+From 22949f82e094bc0439788b96a1cdb8b82d874f2e Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 20 Nov 2017 02:45:36 +0000
+Subject: [PATCH 097/334] ASoC: soc-utils: add const to dummy_codec
+
+Let's align dummy_platform and dummy_codec
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Reviewed-by: Simon Horman <horms+renesas@verge.net.au>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-utils.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/soc-utils.c b/sound/soc/soc-utils.c
+index e30aacbcfc29..bcd3da2739e2 100644
+--- a/sound/soc/soc-utils.c
++++ b/sound/soc/soc-utils.c
+@@ -288,7 +288,7 @@ static const struct snd_soc_platform_driver dummy_platform = {
+ 	.ops = &dummy_dma_ops,
+ };
+ 
+-static struct snd_soc_codec_driver dummy_codec;
++static const struct snd_soc_codec_driver dummy_codec;
+ 
+ #define STUB_RATES	SNDRV_PCM_RATE_8000_192000
+ #define STUB_FORMATS	(SNDRV_PCM_FMTBIT_S8 | \
+-- 
+2.24.1
+

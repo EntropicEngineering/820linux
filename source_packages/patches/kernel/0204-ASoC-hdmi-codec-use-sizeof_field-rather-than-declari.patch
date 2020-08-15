@@ -1,0 +1,37 @@
+From 46abe16ad1c8df09e15b443f73c97c812bb51217 Mon Sep 17 00:00:00 2001
+From: Colin Ian King <colin.king@canonical.com>
+Date: Mon, 18 Sep 2017 10:48:43 +0100
+Subject: [PATCH 204/334] ASoC: hdmi-codec: use sizeof_field rather than
+ declaring hcp
+
+Use FIELD_SIZEOF rather than declaring and initializing hcp. Remove
+unused variables. Cleans up clang warning:
+
+warning: Value stored to 'hcp' during its initialization is never read
+
+Signed-off-by: Colin Ian King <colin.king@canonical.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/codecs/hdmi-codec.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/sound/soc/codecs/hdmi-codec.c b/sound/soc/codecs/hdmi-codec.c
+index cf3b905b4ead..c1830ccd3bb8 100644
+--- a/sound/soc/codecs/hdmi-codec.c
++++ b/sound/soc/codecs/hdmi-codec.c
+@@ -303,11 +303,8 @@ enum {
+ static int hdmi_eld_ctl_info(struct snd_kcontrol *kcontrol,
+ 			     struct snd_ctl_elem_info *uinfo)
+ {
+-	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+-	struct hdmi_codec_priv *hcp = snd_soc_component_get_drvdata(component);
+-
+ 	uinfo->type = SNDRV_CTL_ELEM_TYPE_BYTES;
+-	uinfo->count = sizeof(hcp->eld);
++	uinfo->count = FIELD_SIZEOF(struct hdmi_codec_priv, eld);
+ 
+ 	return 0;
+ }
+-- 
+2.24.1
+

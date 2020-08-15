@@ -1,0 +1,30 @@
+From aaca8fb565477a9d6f4dd2c15ea8f027285340bf Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 18 Jul 2018 12:01:40 +0100
+Subject: [PATCH 244/334] WIP: dts and slim messaging for debug
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/slimbus/messaging.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index d5879142dbef..c0103d062efe 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -201,9 +201,11 @@ static int slim_val_inf_sanity(struct slim_controller *ctrl,
+ 		break;
+ 	}
+ reterr:
+-	if (msg)
++	if (msg) {
+ 		dev_err(ctrl->dev, "Sanity check failed:msg:offset:0x%x, mc:%d\n",
+ 			msg->start_offset, mc);
++		dump_stack();
++	}
+ 	return -EINVAL;
+ }
+ 
+-- 
+2.24.1
+

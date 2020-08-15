@@ -1,0 +1,77 @@
+From 346c9b6ce5c096981af79636f82d32215402e8fe Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 29 Jan 2018 02:58:01 +0000
+Subject: [PATCH 117/334] ASoC: soc-utils: replace codec to component
+
+Now we can replace Codec to Component. Let's do it.
+
+Note:
+	xxx_codec_xxx()		->	xxx_component_xxx()
+	.idle_bias_off = 0	->	.idle_bias_on = 1
+	.ignore_pmdown_time = 0	->	.use_pmdown_time = 1
+	-			->	.endianness = 1
+	-			->	.non_legacy_dai_naming	= 1
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-utils.c | 22 ++++++++--------------
+ 1 file changed, 8 insertions(+), 14 deletions(-)
+
+diff --git a/sound/soc/soc-utils.c b/sound/soc/soc-utils.c
+index e237858c9ed4..2d9e98bd1530 100644
+--- a/sound/soc/soc-utils.c
++++ b/sound/soc/soc-utils.c
+@@ -288,7 +288,12 @@ static const struct snd_soc_component_driver dummy_platform = {
+ 	.ops = &dummy_dma_ops,
+ };
+ 
+-static const struct snd_soc_codec_driver dummy_codec;
++static const struct snd_soc_component_driver dummy_codec = {
++	.idle_bias_on		= 1,
++	.use_pmdown_time	= 1,
++	.endianness		= 1,
++	.non_legacy_dai_naming	= 1,
++};
+ 
+ #define STUB_RATES	SNDRV_PCM_RATE_8000_192000
+ #define STUB_FORMATS	(SNDRV_PCM_FMTBIT_S8 | \
+@@ -338,33 +343,22 @@ static int snd_soc_dummy_probe(struct platform_device *pdev)
+ {
+ 	int ret;
+ 
+-	ret = snd_soc_register_codec(&pdev->dev, &dummy_codec, &dummy_dai, 1);
++	ret = devm_snd_soc_register_component(&pdev->dev,
++					      &dummy_codec, &dummy_dai, 1);
+ 	if (ret < 0)
+ 		return ret;
+ 
+ 	ret = devm_snd_soc_register_component(&pdev->dev, &dummy_platform,
+ 					      NULL, 0);
+-	if (ret < 0) {
+-		snd_soc_unregister_codec(&pdev->dev);
+-		return ret;
+-	}
+ 
+ 	return ret;
+ }
+ 
+-static int snd_soc_dummy_remove(struct platform_device *pdev)
+-{
+-	snd_soc_unregister_codec(&pdev->dev);
+-
+-	return 0;
+-}
+-
+ static struct platform_driver soc_dummy_driver = {
+ 	.driver = {
+ 		.name = "snd-soc-dummy",
+ 	},
+ 	.probe = snd_soc_dummy_probe,
+-	.remove = snd_soc_dummy_remove,
+ };
+ 
+ static struct platform_device *soc_dummy_dev;
+-- 
+2.24.1
+

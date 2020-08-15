@@ -1,0 +1,29 @@
+From 0daad14c2a43c92a554a469df34f81be08216a97 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 16 May 2018 11:30:15 +0100
+Subject: [PATCH 234/334] slimbus: messaging: pass correct wbuf
+
+There seems to be a typo while filling msg for slim_write, wbuf is
+set to NULL instead of rbuf.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/slimbus/messaging.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index 457ea1f8db30..5a2ff01b394c 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -307,7 +307,7 @@ int slim_write(struct slim_device *sdev, u32 addr, size_t count, u8 *val)
+ {
+ 	struct slim_val_inf msg;
+ 
+-	slim_fill_msg(&msg, addr, count,  val, NULL);
++	slim_fill_msg(&msg, addr, count,  NULL, val);
+ 
+ 	return slim_xfer_msg(sdev, &msg, SLIM_MSG_MC_CHANGE_VALUE);
+ }
+-- 
+2.24.1
+

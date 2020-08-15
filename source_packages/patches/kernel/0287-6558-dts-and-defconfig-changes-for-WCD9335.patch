@@ -1,0 +1,500 @@
+From bf936013b959a5376f3f1c27d76c6ee2ff6debe4 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 17:08:59 +0530
+Subject: [PATCH 287/334] [6558] dts and defconfig changes for WCD9335
+
+Change-Id: I699e6242f722cae83bf06fd52c7858cb4f8d6015
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ .../dts/qcom/apq8096-db820c-pmic-pins.dtsi    |   9 ++
+ arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi  |  98 ++++++++++++++++-
+ arch/arm64/boot/dts/qcom/msm8996-pins.dtsi    |  46 ++++++++
+ arch/arm64/boot/dts/qcom/msm8996.dtsi         | 101 +++++++++++++++---
+ arch/arm64/boot/dts/qcom/pmi8994.dtsi         |  14 +++
+ arch/arm64/configs/defconfig                  |  29 +++--
+ 6 files changed, 270 insertions(+), 27 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-db820c-pmic-pins.dtsi b/arch/arm64/boot/dts/qcom/apq8096-db820c-pmic-pins.dtsi
+index 7c65950658c6..1343dc6238d7 100644
+--- a/arch/arm64/boot/dts/qcom/apq8096-db820c-pmic-pins.dtsi
++++ b/arch/arm64/boot/dts/qcom/apq8096-db820c-pmic-pins.dtsi
+@@ -36,6 +36,15 @@
+ 		};
+ 	};
+ 
++
++	audio_mclk: clk_div1 {
++		pinconf {
++			pins = "gpio15";
++			function = "func1";
++			power-source = <PM8994_GPIO_S4>; // 1.8V
++		};
++	};
++
+ 	volume_up_gpio: pm8996_gpio2 {
+ 		pinconf {
+ 			pins = "gpio2";
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi b/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
+index a5a7bd8a3575..db83b49f9026 100644
+--- a/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
++++ b/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
+@@ -37,6 +37,7 @@
+ 	};
+ 
+ 	clocks {
++		compatible = "simple-bus";
+ 		divclk4: divclk4 {
+ 			compatible = "fixed-clock";
+ 			#clock-cells = <0>;
+@@ -46,6 +47,16 @@
+ 			pinctrl-names = "default";
+ 			pinctrl-0 = <&divclk4_pin_a>;
+ 		};
++
++		div1_mclk: divclk1 {
++			compatible = "gpio-gate-clock";
++			pinctrl-0 = <&audio_mclk>;
++			pinctrl-names = "default";
++	                clocks = <&rpmcc RPM_SMD_DIV_CLK1>;
++		        #clock-cells = <0>;
++			enable-gpios = <&pm8994_gpios 15 0>;
++	        };
++
+ 	};
+ 
+ 	soc {
+@@ -217,6 +228,19 @@
+ 			};
+ 		};
+ 
++		slim_msm: slim@91c0000 {
++			ngd@1 {
++				wcd9335: codec@1{
++//				pinctrl-0 = <&cdc_reset_active &wcd_intr_default &audio_mclk>;
++//				pinctrl-names = "default";
++//				qcom,clk1-gpio = <&pm8994_gpios 15 0>;
++					clock-names = "mclk", "slimbus";
++					clocks = <&div1_mclk>,
++						 <&rpmcc RPM_SMD_BB_CLK1>;
++				};
++			};
++		};
++
+ 		mdss@900000 {
+ 			status = "okay";
+ 
+@@ -635,19 +659,56 @@
+ 	compatible = "qcom,apq8096-sndcard";
+ 	qcom,model = "DB820c";
+ 	qcom,audio-routing =
+-		"RX_BIAS", "MCLK";
++		"RX_BIAS", "MCLK",
++		"MIC BIAS1", "MCLK",
++		"MIC BIAS2", "MCLK",
++		"MIC BIAS3", "MCLK",
++		"MIC BIAS4", "MCLK",
++		"AMIC1", "MIC BIAS2",
++		"MIC BIAS2", "Headset Mic",
++		"AMIC2", "MIC BIAS2",
++		"MIC BIAS2", "Headset Mic",
++		"AMIC3", "MIC BIAS2",
++		"MIC BIAS2", "ANCLeft Headset Mic",
++		"AMIC4", "MIC BIAS2",
++		"MIC BIAS2", "ANCRight Headset Mic",
++		"AMIC5", "MIC BIAS2",
++		"MIC BIAS2", "Analog Mic6",
++		"AMIC6", "MIC BIAS2",
++		"MIC BIAS2", "Analog Mic7",
++		"DMIC2", "MIC BIAS1",
++		"MIC BIAS1", "Digital Mic2",
++		"DMIC3", "MIC BIAS1",
++		"MIC BIAS1", "Digital Mic3",
++		"DMIC4", "MIC BIAS3",
++		"MIC BIAS3", "Digital Mic4",
++		"DMIC5", "MIC BIAS3",
++		"MIC BIAS3", "Digital Mic5",
++		"SpkrLeft IN", "SPK1 OUT",
++		"SpkrRight IN", "SPK2 OUT";
++
+ 	mm1-dai-link {
+ 		link-name = "MultiMedia1";
+ 		cpu {
+ 			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA1>;
+ 		};
+-		platform {
+-			sound-dai = <&q6asmdai>;
++	};
++
++	mm2-dai-link {
++		link-name = "MultiMedia2";
++		cpu {
++			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA2>;
+ 		};
+ 	};
+ 
++	mm3-dai-link {
++		link-name = "MultiMedia3";
++		cpu {
++			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA3>;
++		};
++	};
+ 	hdmi-dai-link {
+-		link-name = "HDMI Playback";
++		link-name = "HDMI";
+ 		cpu {
+ 			sound-dai = <&q6afedai HDMI_RX>;
+ 		};
+@@ -660,4 +721,33 @@
+ 			sound-dai = <&hdmi 0>;
+ 		};
+ 	};
++	slim-dai-link {
++		link-name = "SLIM Playback";
++		cpu {
++			sound-dai = <&q6afedai SLIMBUS_6_RX>;
++		};
++
++		platform {
++			sound-dai = <&q6routing>;
++		};
++
++		codec {
++			sound-dai = <&wcd9335 6>;
++		};
++	};
++
++	slimcap-dai-link {
++		link-name = "SLIM Capture";
++		cpu {
++			sound-dai = <&q6afedai SLIMBUS_0_TX>;
++		};
++
++		platform {
++			sound-dai = <&q6routing>;
++		};
++
++		codec {
++			sound-dai = <&wcd9335 1>;
++		};
++	};
+ };
+diff --git a/arch/arm64/boot/dts/qcom/msm8996-pins.dtsi b/arch/arm64/boot/dts/qcom/msm8996-pins.dtsi
+index ddbec6eca5e8..29ad359e667a 100644
+--- a/arch/arm64/boot/dts/qcom/msm8996-pins.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8996-pins.dtsi
+@@ -13,6 +13,52 @@
+ 
+ &msmgpio {
+ 
++		wcd9xxx_intr {
++			wcd_intr_default: wcd_intr_default{
++				mux {
++					pins = "gpio54";
++					function = "gpio";
++				};
++
++				config {
++					pins = "gpio54";
++					drive-strength = <2>; /* 2 mA */
++					bias-pull-down; /* pull down */
++					input-enable;
++				};
++			};
++		};
++
++
++		cdc_reset_ctrl {
++			cdc_reset_sleep: cdc_reset_sleep {
++				mux {
++					pins = "gpio64";
++					function = "gpio";
++				};
++				config {
++					pins = "gpio64";
++					drive-strength = <16>;
++					bias-disable;
++					output-low;
++				};
++			};
++			cdc_reset_active:cdc_reset_active {
++				mux {
++					pins = "gpio64";
++					function = "gpio";
++				};
++				config {
++					pins = "gpio64";
++					drive-strength = <16>;
++					bias-pull-down;
++					output-high;
++				};
++			};
++		};
++
++
++
+ 	blsp1_spi0_default: blsp1_spi0_default {
+ 		pinmux {
+ 			function = "blsp_spi1";
+diff --git a/arch/arm64/boot/dts/qcom/msm8996.dtsi b/arch/arm64/boot/dts/qcom/msm8996.dtsi
+index c50e8f10c112..1b3ededf855b 100644
+--- a/arch/arm64/boot/dts/qcom/msm8996.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8996.dtsi
+@@ -1554,6 +1554,69 @@
+ 			};
+ 		};
+ 
++		slimbam:dma@9184000
++		{
++			compatible = "qcom,bam-v1.7.0";
++			qcom,controlled-remotely;
++			reg = <0x9184000 0x32000>;
++			num-channels  = <31>;
++			interrupts = <0 164 IRQ_TYPE_LEVEL_HIGH>;
++			#dma-cells = <1>;
++			qcom,ee = <1>;
++			qcom,num-ees = <2>;
++		};
++
++		slim_msm: slim@91c0000 {
++			compatible = "qcom,slim-ngd-v1.5.0";
++			reg = <0x91c0000 0x2C000>;
++			reg-names = "ctrl";
++			interrupts = <0 163 IRQ_TYPE_LEVEL_HIGH>;
++			qcom,apps-ch-pipes = <0x60000000>;
++			qcom,ea-pc = <0x160>;
++			dmas =	<&slimbam 3>, <&slimbam 4>,
++				<&slimbam 5>, <&slimbam 6>;
++			dma-names = "rx", "tx", "tx2", "rx2";
++			#address-cells = <1>;
++			#size-cells = <0>;
++			ngd@1 {
++				reg = <1>;
++				#address-cells = <1>;
++				#size-cells = <1>;
++
++				tasha_ifd: tas-ifd {
++					compatible = "slim217,1a0";
++					reg  = <0 0>;
++				};
++
++				wcd9335: codec@1{
++					pinctrl-0 = <&cdc_reset_active &wcd_intr_default>;
++					pinctrl-1 = <&cdc_reset_sleep>;
++					pinctrl-names = "default", "sleep";
++
++					compatible = "slim217,1a0";
++					reg  = <1 0>;
++
++					interrupt-parent = <&msmgpio>;
++					interrupts = <53 IRQ_TYPE_LEVEL_HIGH>,
++						     <54 IRQ_TYPE_LEVEL_HIGH>;
++					interrupt-names  = "intr1", "intr2";
++					interrupt-controller;
++					#interrupt-cells = <1>;
++					reset-gpio = <&msmgpio 64 0>;
++
++					qcom,ifd  = <&tasha_ifd>;
++
++					vdd-buck-supply = <&pm8994_s4>;
++					vdd-buck-sido-supply = <&pm8994_s4>;
++					vdd-tx-supply = <&pm8994_s4>;
++					vdd-rx-supply = <&pm8994_s4>;
++					vdd-io-supply = <&pm8994_s4>;
++
++						#sound-dai-cells = <1>;
++				};
++			};
++		};
++
+ 		adreno_smmu: arm,smmu@b40000 {
+ 			compatible = "qcom,msm8996-smmu-v2", "qcom,smmu-v2";
+ 			reg = <0xb40000 0x10000>;
+@@ -1721,6 +1784,7 @@
+ 
+ 				phys = <&hdmi_phy>;
+ 				phy-names = "hdmi_phy";
++				#sound-dai-cells = <1>;
+ 
+ 				ports {
+ 					#address-cells = <1>;
+@@ -1944,46 +2008,57 @@
+ 			qcom,ipc = <&apcs 16 8>;
+ 			qcom,smd-edge = <1>;
+ 			qcom,remote-pid = <2>;
++			#address-cells = <1>;
++			#size-cells = <0>;
+ 
+ 			apr {
++	            power-domains = <&gcc HLOS1_VOTE_LPASS_ADSP_GDSC>;
+ 				compatible = "qcom,apr-v2";
+ 				qcom,smd-channels = "apr_audio_svc";
+-				qcom,apr-dest-domain-id = <APR_DOMAIN_ADSP>;
++				reg = <APR_DOMAIN_ADSP>;
++				#address-cells = <1>;
++				#size-cells = <0>;
+ 
+ 				q6core {
+-					qcom,apr-svc-name = "CORE";
+-					qcom,apr-svc-id = <APR_SVC_ADSP_CORE>;
++					reg = <APR_SVC_ADSP_CORE>;
+ 					compatible = "qcom,q6core";
+ 				};
+ 
+ 				q6afe: q6afe {
+ 					compatible = "qcom,q6afe";
+-					qcom,apr-svc-name = "AFE";
+-					qcom,apr-svc-id = <APR_SVC_AFE>;
++					reg = <APR_SVC_AFE>;
+ 					q6afedai: dais {
+-						compatible = "qcom,q6afe-dai";
++						compatible = "qcom,q6afe-dais";
++						#address-cells = <1>;
++						#size-cells = <0>;
+ 						#sound-dai-cells = <1>;
++						hdmi@1 {
++							reg = <1>;
++						};
+ 					};
+ 				};
+ 
+ 				q6asm: q6asm {
+ 					compatible = "qcom,q6asm";
+-					qcom,apr-svc-name = "ASM";
+-					qcom,apr-svc-id = <APR_SVC_ASM>;
++					reg = <APR_SVC_ASM>;
+ 					q6asmdai: dais {
+-						compatible = "qcom,q6asm-dai";
++						compatible = "qcom,q6asm-dais";
+ 						#sound-dai-cells = <1>;
+-						power-domains = <&gcc HLOS1_VOTE_LPASS_ADSP_GDSC>;
+ 						iommus = <&lpass_q6_smmu 1>;
++
++						/* MSM_FRONTEND_DAI_MULTIMEDIA1 */
++						mm@0 {
++							reg = <0>;
++							compress-playback;
++						};
+ 					};
+ 				};
+ 
+ 				q6adm: q6adm {
+ 					compatible = "qcom,q6adm";
+-					qcom,apr-svc-name = "ADM";
+-					qcom,apr-svc-id = <APR_SVC_ADM>;
++					reg = <APR_SVC_ADM>;
+ 					q6routing: routing {
+-						compatible = "q6routing";
++						compatible = "qcom,q6adm-routing";
+ 						#sound-dai-cells = <0>;
+ 					};
+ 				};
+diff --git a/arch/arm64/boot/dts/qcom/pmi8994.dtsi b/arch/arm64/boot/dts/qcom/pmi8994.dtsi
+index ecafad2c69c5..885d010a4d59 100644
+--- a/arch/arm64/boot/dts/qcom/pmi8994.dtsi
++++ b/arch/arm64/boot/dts/qcom/pmi8994.dtsi
+@@ -10,6 +10,20 @@
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+ 
++			pm8994_clk_divs: clock-controller@5b00 {
++				compatible = "qcom,spmi-clkdiv";
++				reg = <0x5b00>;
++				#clock-cells = <1>;
++				qcom,num-clkdivs = <3>;
++				clocks = <&xo_board>;
++				clock-names = "xo";
++				assigned-clocks = <&pm8994_clk_divs 1>,
++						  <&pm8994_clk_divs 2>,
++						  <&pm8994_clk_divs 3>;
++				assigned-clock-rates = <9600000>,
++						       <9600000>,
++						       <9600000>;
++			};
+ 		pmi8994_gpios: gpios@c000 {
+ 			compatible = "qcom,pmi8994-gpio", "qcom,spmi-gpio";
+ 			reg = <0xc000>;
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index e0c5ae1e7ca3..41cd3125f62c 100644
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -135,8 +135,8 @@ CONFIG_BRIDGE_VLAN_FILTERING=y
+ CONFIG_VLAN_8021Q=m
+ CONFIG_VLAN_8021Q_GVRP=y
+ CONFIG_VLAN_8021Q_MVRP=y
+-CONFIG_QRTR=m
+-CONFIG_QRTR_SMD=m
++CONFIG_QRTR=y
++CONFIG_QRTR_SMD=y
+ CONFIG_BPF_JIT=y
+ CONFIG_BT=m
+ CONFIG_BT_HIDP=m
+@@ -353,6 +353,8 @@ CONFIG_MFD_MAX77620=y
+ CONFIG_MFD_SPMI_PMIC=y
+ CONFIG_MFD_RK808=y
+ CONFIG_MFD_SEC_CORE=y
++CONFIG_MFD_WCD9335=y
++CONFIG_MFD_WCD9335_SLIM=y
+ CONFIG_REGULATOR_FIXED_VOLTAGE=y
+ CONFIG_REGULATOR_AXP20X=y
+ CONFIG_REGULATOR_FAN53555=y
+@@ -421,14 +423,16 @@ CONFIG_SOUND=y
+ CONFIG_SND=y
+ CONFIG_SND_SOC=y
+ CONFIG_SND_BCM2835_SOC_I2S=m
+-CONFIG_SND_SOC_QCOM=m
++CONFIG_SND_SOC_QCOM=y
+ #CONFIG_SND_SOC_APQ8016_SBC=m
+-CONFIG_SND_SOC_MSM8996=m
++CONFIG_SND_SOC_MSM8996=y
++CONFIG_SND_SOC_QDSP6=y
+ #CONFIG_SND_SOC_SAMSUNG=y
+ #CONFIG_SND_SOC_RCAR=m
+ #CONFIG_SND_SOC_AK4613=m
+ #CONFIG_SND_SOC_MSM8916_WCD_ANALOG=m
+ #CONFIG_SND_SOC_MSM8916_WCD_DIGITAL=m
++CONFIG_SND_SOC_WCD9335=y
+ CONFIG_SND_SIMPLE_CARD=y
+ CONFIG_USB=y
+ CONFIG_USB_OTG=y
+@@ -545,23 +549,23 @@ CONFIG_ROCKCHIP_IOMMU=y
+ CONFIG_ARM_SMMU=y
+ CONFIG_ARM_SMMU_V3=y
+ CONFIG_QCOM_IOMMU=y
+-CONFIG_REMOTEPROC=m
++CONFIG_REMOTEPROC=y
+ CONFIG_QCOM_ADSP_PIL=m
+ CONFIG_QCOM_Q6V5_PIL=m
+-CONFIG_QCOM_SYSMON=m
++CONFIG_QCOM_SYSMON=y
+ CONFIG_QCOM_WCNSS_PIL=m
+-CONFIG_RPMSG_CHAR=m
++CONFIG_RPMSG_CHAR=y
+ CONFIG_RPMSG_QCOM_GLINK_RPM=y
+-CONFIG_RPMSG_QCOM_GLINK_SMEM=m
++CONFIG_RPMSG_QCOM_GLINK_SMEM=y
+ CONFIG_RPMSG_QCOM_SMD=y
+ CONFIG_RASPBERRYPI_POWER=y
+-CONFIG_QCOM_RMTFS_MEM=m
++CONFIG_QCOM_RMTFS_MEM=y
+ CONFIG_QCOM_SMEM=y
+ CONFIG_QCOM_SMD_RPM=y
+ CONFIG_QCOM_SMP2P=y
+ CONFIG_QCOM_SMSM=y
+ CONFIG_QCOM_WCNSS_CTRL=y
+-CONFIG_QCOM_APR=m
++CONFIG_QCOM_APR=y
+ CONFIG_ROCKCHIP_PM_DOMAINS=y
+ CONFIG_ARCH_TEGRA_132_SOC=y
+ CONFIG_ARCH_TEGRA_210_SOC=y
+@@ -651,3 +655,8 @@ CONFIG_CRYPTO_AES_ARM64_CE_CCM=y
+ CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
+ CONFIG_CRYPTO_CHACHA20_NEON=m
+ CONFIG_CRYPTO_AES_ARM64_BS=m
++CONFIG_SLIMBUS=y
++CONFIG_SLIM_QCOM_CTRL=y
++CONFIG_SLIM_QCOM_NGD_CTRL=y
++CONFIG_SND_SOC_WCD9335=y
++CONFIG_REGMAP_SLIMBUS=y
+-- 
+2.24.1
+

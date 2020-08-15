@@ -1,0 +1,32 @@
+From fbdf2d3e0a8f8887d809026a39d34c7799d8400a Mon Sep 17 00:00:00 2001
+From: Sudhesh Kumar <sukumar@intrinsyc.com>
+Date: Tue, 14 Jan 2020 18:28:04 +0530
+Subject: [PATCH 334/334] [10877] I2C bus error goodix gt9xx Guitar reset
+
+I2C error on Q820-Regular-SoM during kernel boot and system hangs.
+
+To maintain the consistency across the platforms(SOM, uSOM, Pro uSOM)
+we need to keep the standard i2c frequency as 400kHz (Fast Mode).
+
+Change-Id: If4b4552f0cd9b09df413d00c73253191d8f6de67
+Signed-off-by: Sudhesh Kumar <sukumar@intrinsyc.com>
+---
+ arch/arm64/boot/dts/qcom/msm8996.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8996.dtsi b/arch/arm64/boot/dts/qcom/msm8996.dtsi
+index 1082886b8d1f..6dfd248a270e 100644
+--- a/arch/arm64/boot/dts/qcom/msm8996.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8996.dtsi
+@@ -790,7 +790,7 @@
+ 		blsp2_i2c5: i2c@075ba000 {
+ 			compatible = "qcom,i2c-qup-v2.2.1";
+ 			reg = <0x075ba000 0x1000>;
+-			clock-frequency = <1000000>;
++			clock-frequency = <400000>; /* 400kHz as Fast Mode */
+ 			interrupts = <GIC_SPI 106 0>;
+ 			clocks = <&gcc GCC_BLSP2_AHB_CLK>,
+ 				<&gcc GCC_BLSP2_QUP6_I2C_APPS_CLK>;
+-- 
+2.24.1
+

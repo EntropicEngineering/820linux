@@ -1,0 +1,48 @@
+From ae82b5f355c904e0fa5adfb28de82c05a29b63e5 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Fri, 19 Jan 2018 05:21:19 +0000
+Subject: [PATCH 108/334] ASoC: soc-pcm: rename .pmdown_time to
+ .use_pmdown_time for Component
+
+commit fbb16563c6c2 ("ASoC: snd_soc_component_driver has pmdown_time")
+added new .pmdown_time which is for inverted version of current
+.ignore_pmdown_time
+But it is confusable name. Let's rename it to .use_pmdown_time
+
+Reported-by: Peter Ujfalusi <peter.ujfalusi@ti.com>
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h | 2 +-
+ sound/soc/soc-pcm.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index 8a29085712ea..9720a2f005cd 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -841,7 +841,7 @@ struct snd_soc_component_driver {
+ 	/* bits */
+ 	unsigned int idle_bias_on:1;
+ 	unsigned int suspend_bias_off:1;
+-	unsigned int pmdown_time:1; /* care pmdown_time at stop */
++	unsigned int use_pmdown_time:1; /* care pmdown_time at stop */
+ 	unsigned int endianness:1;
+ 	unsigned int non_legacy_dai_naming:1;
+ };
+diff --git a/sound/soc/soc-pcm.c b/sound/soc/soc-pcm.c
+index 998800cc44ef..084125463d10 100644
+--- a/sound/soc/soc-pcm.c
++++ b/sound/soc/soc-pcm.c
+@@ -144,7 +144,7 @@ bool snd_soc_runtime_ignore_pmdown_time(struct snd_soc_pcm_runtime *rtd)
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		ignore &= !component->driver->pmdown_time;
++		ignore &= !component->driver->use_pmdown_time;
+ 	}
+ 
+ 	/* this will be removed */
+-- 
+2.24.1
+

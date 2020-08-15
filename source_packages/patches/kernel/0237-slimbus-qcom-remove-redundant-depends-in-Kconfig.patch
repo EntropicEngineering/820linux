@@ -1,0 +1,28 @@
+From 66de98432d87de67d023a303ea60ee8a6370196f Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 17 May 2018 09:40:10 +0100
+Subject: [PATCH 237/334] slimbus: qcom: remove redundant depends in Kconfig
+
+QCOM SLIMBus controller is already under a 'if SLIMBUS' in Kconfig,
+having depends on SLIMBUS is totally redundant. Just remove it.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/slimbus/Kconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/slimbus/Kconfig b/drivers/slimbus/Kconfig
+index 1a632fad597e..bfb78d9a6583 100644
+--- a/drivers/slimbus/Kconfig
++++ b/drivers/slimbus/Kconfig
+@@ -15,7 +15,6 @@ if SLIMBUS
+ # SLIMbus controllers
+ config SLIM_QCOM_CTRL
+ 	tristate "Qualcomm SLIMbus Manager Component"
+-	depends on SLIMBUS
+ 	depends on HAS_IOMEM
+ 	help
+ 	  Select driver if Qualcomm's SLIMbus Manager Component is
+-- 
+2.24.1
+

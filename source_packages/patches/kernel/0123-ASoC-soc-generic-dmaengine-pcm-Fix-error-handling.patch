@@ -1,0 +1,40 @@
+From bf3eb991aaa918298ea0f12bf558d2d8abf8deaf Mon Sep 17 00:00:00 2001
+From: Fabio Estevam <fabio.estevam@nxp.com>
+Date: Thu, 22 Feb 2018 16:02:21 -0300
+Subject: [PATCH 123/334] ASoC: soc-generic-dmaengine-pcm: Fix error handling
+
+When dmaengine_pcm_request_chan_of() fails it should release
+the previously acquired resources, which in this case is to
+call kfree(pcm), so jump to the correct point in the error
+path.
+
+Signed-off-by: Fabio Estevam <fabio.estevam@nxp.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-generic-dmaengine-pcm.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/soc-generic-dmaengine-pcm.c b/sound/soc/soc-generic-dmaengine-pcm.c
+index 768247fd92c5..32ea16d062b1 100644
+--- a/sound/soc/soc-generic-dmaengine-pcm.c
++++ b/sound/soc/soc-generic-dmaengine-pcm.c
+@@ -450,7 +450,7 @@ int snd_dmaengine_pcm_register(struct device *dev,
+ 
+ 	ret = dmaengine_pcm_request_chan_of(pcm, dev, config);
+ 	if (ret)
+-		goto err_free_dma;
++		goto err_free_pcm;
+ 
+ 	ret = snd_soc_add_component(dev, &pcm->component,
+ 				    &dmaengine_pcm_component, NULL, 0);
+@@ -461,6 +461,7 @@ int snd_dmaengine_pcm_register(struct device *dev,
+ 
+ err_free_dma:
+ 	dmaengine_pcm_release_chan(pcm);
++err_free_pcm:
+ 	kfree(pcm);
+ 	return ret;
+ }
+-- 
+2.24.1
+

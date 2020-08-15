@@ -1,0 +1,78 @@
+From b6f31de717c8fca23faedc1d2b0ea0749b475cc3 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 30 May 2018 15:29:54 +0100
+Subject: [PATCH 192/334] ASoC: core: add support to dai get_channel_map
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ include/sound/soc-dai.h |  9 +++++++++
+ sound/soc/soc-core.c    | 26 ++++++++++++++++++++++++++
+ 2 files changed, 35 insertions(+)
+
+diff --git a/include/sound/soc-dai.h b/include/sound/soc-dai.h
+index 88bd1b6bfc7c..d645eb3419c6 100644
+--- a/include/sound/soc-dai.h
++++ b/include/sound/soc-dai.h
+@@ -139,6 +139,11 @@ int snd_soc_dai_set_tristate(struct snd_soc_dai *dai, int tristate);
+ int snd_soc_dai_digital_mute(struct snd_soc_dai *dai, int mute,
+ 			     int direction);
+ 
++
++int snd_soc_dai_get_channel_map(struct snd_soc_dai *dai,
++         unsigned int *tx_num, unsigned int *tx_slot,
++         unsigned int *rx_num, unsigned int *rx_slot);
++
+ int snd_soc_dai_is_dummy(struct snd_soc_dai *dai);
+ 
+ struct snd_soc_dai_ops {
+@@ -167,6 +172,10 @@ struct snd_soc_dai_ops {
+ 		unsigned int tx_num, unsigned int *tx_slot,
+ 		unsigned int rx_num, unsigned int *rx_slot);
+ 	int (*set_tristate)(struct snd_soc_dai *dai, int tristate);
++  	int (*get_channel_map)(struct snd_soc_dai *dai,
++                unsigned int *tx_num, unsigned int *tx_slot,
++                 unsigned int *rx_num, unsigned int *rx_slot);
++
+ 
+ 	/*
+ 	 * DAI digital mute - optional.
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 9582911fc553..61a610203283 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -2612,6 +2612,32 @@ int snd_soc_dai_set_channel_map(struct snd_soc_dai *dai,
+ }
+ EXPORT_SYMBOL_GPL(snd_soc_dai_set_channel_map);
+ 
++
++/**
++ * snd_soc_dai_get_channel_map - configure DAI audio channel map
++ * @dai: DAI
++ * @tx_num: how many TX channels
++ * @tx_slot: pointer to an array which imply the TX slot number channel
++ *           0~num-1 uses
++ * @rx_num: how many RX channels
++ * @rx_slot: pointer to an array which imply the RX slot number channel
++ *           0~num-1 uses
++ *
++ * configure the relationship between channel number and TDM slot number.
++ */
++int snd_soc_dai_get_channel_map(struct snd_soc_dai *dai,
++	unsigned int *tx_num, unsigned int *tx_slot,
++	unsigned int *rx_num, unsigned int *rx_slot)
++{
++	if (dai->driver->ops->get_channel_map)
++		return dai->driver->ops->get_channel_map(dai, tx_num, tx_slot,
++			rx_num, rx_slot);
++	else
++		return -ENOTSUPP;
++}
++EXPORT_SYMBOL_GPL(snd_soc_dai_get_channel_map);
++
++
+ /**
+  * snd_soc_dai_set_tristate - configure DAI system or master clock.
+  * @dai: DAI
+-- 
+2.24.1
+

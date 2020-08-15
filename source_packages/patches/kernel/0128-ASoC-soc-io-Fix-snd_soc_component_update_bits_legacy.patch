@@ -1,0 +1,50 @@
+From d889f7526def36033c52dd3097aa6ff6085d5614 Mon Sep 17 00:00:00 2001
+From: Peter Ujfalusi <peter.ujfalusi@ti.com>
+Date: Mon, 12 Mar 2018 16:24:23 +0200
+Subject: [PATCH 128/334] ASoC: soc-io: Fix
+ snd_soc_component_update_bits_legacy
+
+After the codec to component conversion codecs with custom read/write
+function will no longer able to use update_bits as their io callbacks are
+registered at component->driver level and not in component level.
+
+To not complicate the code further, lets just use the
+snd_soc_component_read/snd_soc_component_write function and let them sort
+out the correct io function to call.
+
+Fixes: d0ff8ba57d965 ("ASoC: add Component level .read/.write")
+Signed-off-by: Peter Ujfalusi <peter.ujfalusi@ti.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-io.c | 7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/sound/soc/soc-io.c b/sound/soc/soc-io.c
+index 2bc1c4c17896..d36a192fbece 100644
+--- a/sound/soc/soc-io.c
++++ b/sound/soc/soc-io.c
+@@ -88,19 +88,16 @@ static int snd_soc_component_update_bits_legacy(
+ 	unsigned int old, new;
+ 	int ret;
+ 
+-	if (!component->read || !component->write)
+-		return -EIO;
+-
+ 	mutex_lock(&component->io_mutex);
+ 
+-	ret = component->read(component, reg, &old);
++	ret = snd_soc_component_read(component, reg, &old);
+ 	if (ret < 0)
+ 		goto out_unlock;
+ 
+ 	new = (old & ~mask) | (val & mask);
+ 	*change = old != new;
+ 	if (*change)
+-		ret = component->write(component, reg, new);
++		ret = snd_soc_component_write(component, reg, new);
+ out_unlock:
+ 	mutex_unlock(&component->io_mutex);
+ 
+-- 
+2.24.1
+

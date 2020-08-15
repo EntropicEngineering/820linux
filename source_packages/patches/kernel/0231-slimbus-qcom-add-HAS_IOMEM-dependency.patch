@@ -1,0 +1,36 @@
+From b123021fd8cb3649bc9bf70818f5114582a9c3ec Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 3 Jan 2018 09:32:04 +0000
+Subject: [PATCH 231/334] slimbus: qcom: add HAS_IOMEM dependency
+
+Below build failure was reported on UML,
+ERROR: "devm_ioremap_resource" [drivers/slimbus/slim-qcom-ctrl.ko] undefined!
+ERROR: "__ioread32_copy" [drivers/slimbus/slim-qcom-ctrl.ko] undefined!
+ERROR: "__iowrite32_copy" [drivers/slimbus/slim-qcom-ctrl.ko] undefined!
+ERROR: "devm_ioremap" [drivers/slimbus/slim-qcom-ctrl.ko] undefined!
+
+This patch fixes it by making qcom slimbus depend on HAS_IOMEM, as
+these are only defined when HAS_IOMEM is selected.
+
+Reported-by: Thomas Meyer <thomas@m3y3r.de>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/slimbus/Kconfig b/drivers/slimbus/Kconfig
+index 78bdd4808282..1a632fad597e 100644
+--- a/drivers/slimbus/Kconfig
++++ b/drivers/slimbus/Kconfig
+@@ -16,6 +16,7 @@ if SLIMBUS
+ config SLIM_QCOM_CTRL
+ 	tristate "Qualcomm SLIMbus Manager Component"
+ 	depends on SLIMBUS
++	depends on HAS_IOMEM
+ 	help
+ 	  Select driver if Qualcomm's SLIMbus Manager Component is
+ 	  programmed using Linux kernel.
+-- 
+2.24.1
+

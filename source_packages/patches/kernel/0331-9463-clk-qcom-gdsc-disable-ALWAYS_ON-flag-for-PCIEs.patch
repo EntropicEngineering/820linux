@@ -1,0 +1,48 @@
+From bf2abde374bbcca86bff20241a00c96561c13ac7 Mon Sep 17 00:00:00 2001
+From: KNight Weng <kweng@intrinsyc.com>
+Date: Thu, 27 Jun 2019 17:32:14 +0800
+Subject: [PATCH 331/334] [9463] clk: qcom: gdsc: disable ALWAYS_ON flag for
+ PCIEs
+
+Leavage from #10275
+
+Change-Id: I9cc08668fb3ba654ae139f0eb4c6b4fac20654c3
+---
+ drivers/clk/qcom/gcc-msm8996.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/clk/qcom/gcc-msm8996.c b/drivers/clk/qcom/gcc-msm8996.c
+index 73537c1dc500..64fe004637d5 100644
+--- a/drivers/clk/qcom/gcc-msm8996.c
++++ b/drivers/clk/qcom/gcc-msm8996.c
+@@ -3314,8 +3314,7 @@ static struct gdsc pcie0_gdsc = {
+ 	.pd = {
+ 		.name = "pcie0",
+ 	},
+-	.pwrsts = PWRSTS_OFF_ON,
+-	.flags = VOTABLE | ALWAYS_ON,
++	.pwrsts = PWRSTS_ON,
+ };
+ 
+ static struct gdsc pcie1_gdsc = {
+@@ -3323,7 +3322,7 @@ static struct gdsc pcie1_gdsc = {
+ 	.pd = {
+ 		.name = "pcie1",
+ 	},
+-	.pwrsts = PWRSTS_OFF_ON,
++	.pwrsts = PWRSTS_ON,
+ };
+ 
+ static struct gdsc pcie2_gdsc = {
+@@ -3331,7 +3330,7 @@ static struct gdsc pcie2_gdsc = {
+ 	.pd = {
+ 		.name = "pcie2",
+ 	},
+-	.pwrsts = PWRSTS_OFF_ON,
++	.pwrsts = PWRSTS_ON,
+ };
+ 
+ static struct gdsc ufs_gdsc = {
+-- 
+2.24.1
+

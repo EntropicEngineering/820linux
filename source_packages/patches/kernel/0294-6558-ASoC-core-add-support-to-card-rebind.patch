@@ -1,0 +1,198 @@
+From 10f0633f6e7df0763f711eda321314a55801d3e9 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 9 Aug 2018 11:51:52 +0100
+Subject: [PATCH 294/334] [6558] ASoC: core: add support to card rebind
+
+Current behaviour of ASoC core w.r.t to component removal is that it
+unregisters dependent sound card totally. There is no support to
+rebind the card if the component comes back.
+Typical use case is DSP restart or kernel modules itself.
+
+With this patch, core now maintains list of cards that are unbind due to
+any of its depended components are removed and card not unregistered yet.
+This list is cleared when the card is rebind successfully or when the
+card is unregistered from machine driver.
+
+This list of unbind cards are tried to bind once again after every new
+component is successfully added, giving a fair chance for card bind
+to be successful.
+
+Change-Id: Ia3d8e683c8e70716cf0006ba18a888de306b5da5
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ include/sound/soc.h  |  2 ++
+ sound/soc/soc-core.c | 86 ++++++++++++++++++++++++++++++--------------
+ 2 files changed, 61 insertions(+), 27 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index a23ecdf3eff1..73f7a12f0d66 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -1099,6 +1099,7 @@ struct snd_soc_card {
+ 
+ 	/* lists of probed devices belonging to this card */
+ 	struct list_head component_dev_list;
++	struct list_head list;
+ 
+ 	struct list_head widgets;
+ 	struct list_head paths;
+@@ -1366,6 +1367,7 @@ static inline void snd_soc_initialize_card_lists(struct snd_soc_card *card)
+ 	INIT_LIST_HEAD(&card->dapm_list);
+ 	INIT_LIST_HEAD(&card->aux_comp_list);
+ 	INIT_LIST_HEAD(&card->component_dev_list);
++	INIT_LIST_HEAD(&card->list);
+ }
+ 
+ static inline bool snd_soc_volsw_is_stereo(struct soc_mixer_control *mc)
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index da555babcf9a..3678e5fd5fc7 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -52,6 +52,7 @@ EXPORT_SYMBOL_GPL(snd_soc_debugfs_root);
+ 
+ static DEFINE_MUTEX(client_mutex);
+ static LIST_HEAD(component_list);
++static LIST_HEAD(unbind_card_list);
+ 
+ /*
+  * This is a timeout to do a DAPM powerdown after a stream is closed().
+@@ -2727,6 +2728,34 @@ int snd_soc_dai_digital_mute(struct snd_soc_dai *dai, int mute,
+ }
+ EXPORT_SYMBOL_GPL(snd_soc_dai_digital_mute);
+ 
++static int snd_soc_bind_card(struct snd_soc_card *card)
++{
++	struct snd_soc_pcm_runtime *rtd;
++	int ret;
++
++	ret = snd_soc_instantiate_card(card);
++	if (ret != 0)
++		return ret;
++
++	/* deactivate pins to sleep state */
++	list_for_each_entry(rtd, &card->rtd_list, list)  {
++		struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
++		int j;
++
++		for (j = 0; j < rtd->num_codecs; j++) {
++			struct snd_soc_dai *codec_dai = rtd->codec_dais[j];
++
++			if (!codec_dai->active)
++				pinctrl_pm_select_sleep_state(codec_dai->dev);
++		}
++
++		if (!cpu_dai->active)
++			pinctrl_pm_select_sleep_state(cpu_dai->dev);
++	}
++
++	return ret;
++}
++
+ /**
+  * snd_soc_register_card - Register a card with the ASoC core
+  *
+@@ -2736,7 +2765,6 @@ EXPORT_SYMBOL_GPL(snd_soc_dai_digital_mute);
+ int snd_soc_register_card(struct snd_soc_card *card)
+ {
+ 	int i, ret;
+-	struct snd_soc_pcm_runtime *rtd;
+ 
+ 	if (!card->name || !card->dev)
+ 		return -EINVAL;
+@@ -2768,28 +2796,23 @@ int snd_soc_register_card(struct snd_soc_card *card)
+ 	mutex_init(&card->mutex);
+ 	mutex_init(&card->dapm_mutex);
+ 
+-	ret = snd_soc_instantiate_card(card);
+-	if (ret != 0)
+-		return ret;
+-
+-	/* deactivate pins to sleep state */
+-	list_for_each_entry(rtd, &card->rtd_list, list)  {
+-		struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+-		int j;
+-
+-		for (j = 0; j < rtd->num_codecs; j++) {
+-			struct snd_soc_dai *codec_dai = rtd->codec_dais[j];
+-			if (!codec_dai->active)
+-				pinctrl_pm_select_sleep_state(codec_dai->dev);
+-		}
++	return snd_soc_bind_card(card);
++}
++EXPORT_SYMBOL_GPL(snd_soc_register_card);
+ 
+-		if (!cpu_dai->active)
+-			pinctrl_pm_select_sleep_state(cpu_dai->dev);
++static void snd_soc_unbind_card(struct snd_soc_card *card, bool unregister)
++{
++	if (card->instantiated) {
++		card->instantiated = false;
++		snd_soc_dapm_shutdown(card);
++		soc_cleanup_card_resources(card);
++		if (!unregister)
++			list_add(&card->list, &unbind_card_list);
++	} else {
++		if (unregister)
++			list_del(&card->list);
+ 	}
+-
+-	return ret;
+ }
+-EXPORT_SYMBOL_GPL(snd_soc_register_card);
+ 
+ /**
+  * snd_soc_unregister_card - Unregister a card with the ASoC core
+@@ -2799,12 +2822,8 @@ EXPORT_SYMBOL_GPL(snd_soc_register_card);
+  */
+ int snd_soc_unregister_card(struct snd_soc_card *card)
+ {
+-	if (card->instantiated) {
+-		card->instantiated = false;
+-		snd_soc_dapm_shutdown(card);
+-		soc_cleanup_card_resources(card);
+-		dev_dbg(card->dev, "ASoC: Unregistered card '%s'\n", card->name);
+-	}
++	snd_soc_unbind_card(card, true);
++	dev_dbg(card->dev, "ASoC: Unregistered card '%s'\n", card->name);
+ 
+ 	if (!card->auto_bind && card->components_added)
+ 		component_master_del(card->dev, &snd_soc_card_comp_ops);
+@@ -3153,7 +3172,7 @@ static void snd_soc_component_del_unlocked(struct snd_soc_component *component)
+ 	struct snd_soc_card *card = component->card;
+ 
+ 	if (card)
+-		snd_soc_unregister_card(card);
++		snd_soc_unbind_card(card, false);
+ 
+ 	list_del(&component->list);
+ }
+@@ -3193,6 +3212,18 @@ static void convert_endianness_formats(struct snd_soc_pcm_stream *stream)
+ 			stream->formats |= endianness_format_map[i];
+ }
+ 
++static void snd_soc_try_rebind_card(void)
++{
++	struct snd_soc_card *card, *c;
++
++	if (!list_empty(&unbind_card_list)) {
++		list_for_each_entry_safe(card, c, &unbind_card_list, list) {
++			if (!snd_soc_bind_card(card))
++				list_del(&card->list);
++		}
++	}
++}
++
+ int snd_soc_add_component(struct device *dev,
+ 			struct snd_soc_component *component,
+ 			const struct snd_soc_component_driver *component_driver,
+@@ -3220,6 +3251,7 @@ int snd_soc_add_component(struct device *dev,
+ 	}
+ 
+ 	snd_soc_component_add(component);
++	snd_soc_try_rebind_card();
+ 
+ 	ret = component_add(dev, NULL);
+ 	if (ret < 0) {
+-- 
+2.24.1
+

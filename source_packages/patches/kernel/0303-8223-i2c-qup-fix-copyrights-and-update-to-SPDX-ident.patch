@@ -1,0 +1,43 @@
+From 747b4c7754c75318f836f78708fb4b8570cc5cfb Mon Sep 17 00:00:00 2001
+From: Abhishek Sahu <absahu@codeaurora.org>
+Date: Mon, 12 Mar 2018 18:44:50 +0530
+Subject: [PATCH 303/334] [8223] i2c: qup: fix copyrights and update to SPDX
+ identifier
+
+The file has been updated from 2016 to 2018 so fixed the
+copyright years.
+
+Change-Id: Ibc54b83e8deacd47a37d120656402b5196217df0
+Signed-off-by: Abhishek Sahu <absahu@codeaurora.org>
+Signed-off-by: Wolfram Sang <wsa@the-dreams.de>
+---
+ drivers/i2c/busses/i2c-qup.c | 13 ++-----------
+ 1 file changed, 2 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/i2c/busses/i2c-qup.c b/drivers/i2c/busses/i2c-qup.c
+index 08f8e0107642..ac5edfac2d5c 100644
+--- a/drivers/i2c/busses/i2c-qup.c
++++ b/drivers/i2c/busses/i2c-qup.c
+@@ -1,17 +1,8 @@
++// SPDX-License-Identifier: GPL-2.0
+ /*
+- * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2009-2013, 2016-2018, The Linux Foundation. All rights reserved.
+  * Copyright (c) 2014, Sony Mobile Communications AB.
+  *
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License version 2 and
+- * only version 2 as published by the Free Software Foundation.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+  */
+ 
+ #include <linux/acpi.h>
+-- 
+2.24.1
+

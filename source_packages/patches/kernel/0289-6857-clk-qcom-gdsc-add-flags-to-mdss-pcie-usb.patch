@@ -1,0 +1,49 @@
+From 0bfde6828555ad1093194eb5c78bc00ae6127dc3 Mon Sep 17 00:00:00 2001
+From: Mahaboob Vali <mvali@intrinsyc.com>
+Date: Wed, 29 Aug 2018 14:15:44 +0530
+Subject: [PATCH 289/334] [6857] clk: qcom: gdsc: add flags to mdss/pcie/usb
+
+This change is needed to make suspend/resume as expected by making
+MDSS/PCIE0/USB30 GDSCs enable/disable respectively.
+
+Change-Id: I191771e6df618be80468477e280ecfa7c655b212
+---
+ drivers/clk/qcom/gcc-msm8996.c  | 2 ++
+ drivers/clk/qcom/mmcc-msm8996.c | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/clk/qcom/gcc-msm8996.c b/drivers/clk/qcom/gcc-msm8996.c
+index 7abb88f39dd3..73537c1dc500 100644
+--- a/drivers/clk/qcom/gcc-msm8996.c
++++ b/drivers/clk/qcom/gcc-msm8996.c
+@@ -3306,6 +3306,7 @@ static struct gdsc usb30_gdsc = {
+ 		.name = "usb30",
+ 	},
+ 	.pwrsts = PWRSTS_OFF_ON,
++	.flags = VOTABLE | ALWAYS_ON,
+ };
+ 
+ static struct gdsc pcie0_gdsc = {
+@@ -3314,6 +3315,7 @@ static struct gdsc pcie0_gdsc = {
+ 		.name = "pcie0",
+ 	},
+ 	.pwrsts = PWRSTS_OFF_ON,
++	.flags = VOTABLE | ALWAYS_ON,
+ };
+ 
+ static struct gdsc pcie1_gdsc = {
+diff --git a/drivers/clk/qcom/mmcc-msm8996.c b/drivers/clk/qcom/mmcc-msm8996.c
+index 3e35982f9486..4f0f930bc4d4 100644
+--- a/drivers/clk/qcom/mmcc-msm8996.c
++++ b/drivers/clk/qcom/mmcc-msm8996.c
+@@ -3053,6 +3053,7 @@ static struct gdsc mdss_gdsc = {
+ 	},
+ 	.parent = &mmagic_mdss_gdsc.pd,
+ 	.pwrsts = PWRSTS_OFF_ON,
++	.flags = VOTABLE | ALWAYS_ON,
+ };
+ 
+ static struct gdsc gpu_gx_gdsc = {
+-- 
+2.24.1
+

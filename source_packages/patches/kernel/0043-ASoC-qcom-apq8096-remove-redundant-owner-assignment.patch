@@ -1,0 +1,31 @@
+From 5b228ef84b243b6887c3d81270295843a7fbdc3f Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Tue, 26 Jun 2018 10:20:14 +0100
+Subject: [PATCH 043/334] ASoC: qcom: apq8096: remove redundant owner
+ assignment
+
+module owner is already set in platform_driver_register(), so remove this
+redundant assignment.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Acked-by: Niklas Cassel <niklas.cassel@linaro.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/qcom/apq8096.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/sound/soc/qcom/apq8096.c b/sound/soc/qcom/apq8096.c
+index 239b8cb77bdb..cab8c4ff7c00 100644
+--- a/sound/soc/qcom/apq8096.c
++++ b/sound/soc/qcom/apq8096.c
+@@ -246,7 +246,6 @@ static struct platform_driver msm_snd_apq8096_driver = {
+ 	.remove = apq8096_platform_remove,
+ 	.driver = {
+ 		.name = "msm-snd-apq8096",
+-		.owner = THIS_MODULE,
+ 		.of_match_table = msm_snd_apq8096_dt_match,
+ 	},
+ };
+-- 
+2.24.1
+

@@ -1,0 +1,29 @@
+From ccd0e1179dbaa38357ab80f50abf4ee82d856ff9 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Tue, 22 Jan 2019 19:35:17 +0530
+Subject: [PATCH 324/334] [8397] Handoff smmu mdp ahb, axi clocks & mdss gdsc
+ since they are enabled in bootloader
+
+Change-Id: I1ceea198ff1a1e79b42ccabd6e4bc69f75c77ad1
+(cherry picked from commit 9fb82a8b3905bff51f22139fccd76b4c2a475e36)
+---
+ drivers/clk/qcom/mmcc-msm8996.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/clk/qcom/mmcc-msm8996.c b/drivers/clk/qcom/mmcc-msm8996.c
+index cddcc08c5931..4060f54bc7ff 100644
+--- a/drivers/clk/qcom/mmcc-msm8996.c
++++ b/drivers/clk/qcom/mmcc-msm8996.c
+@@ -3376,6 +3376,9 @@ static int mmcc_msm8996_probe(struct platform_device *pdev)
+ 	regmap_update_bits(regmap, 0x50d8, BIT(31), 0);
+ 	/* Disable the NoC FSM for mmss_mmagic_cfg_ahb_clk */
+ 	regmap_update_bits(regmap, 0x5054, BIT(15), 0);
++	regmap_update_bits(regmap, 0x2304, BIT(0), 1); /*turn off mdss gdsc*/
++	regmap_update_bits(regmap, 0x2454, BIT(0), 0); /*turn off smmu_mdp_ahb_clk */
++	regmap_update_bits(regmap, 0x2458, BIT(0), 0); /*turn off smmu_mdp_axi_clk*/
+ 
+ 	for (i = 0; i < ARRAY_SIZE(mmcc_msm8996_hws); i++) {
+ 		ret = devm_clk_hw_register(dev, mmcc_msm8996_hws[i]);
+-- 
+2.24.1
+

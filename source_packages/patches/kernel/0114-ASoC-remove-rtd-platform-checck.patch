@@ -1,0 +1,34 @@
+From 367171984139ea31e2679b48a3228d439498123a Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 29 Jan 2018 02:40:28 +0000
+Subject: [PATCH 114/334] ASoC: remove rtd->platform checck
+
+Now, we are ready to replace rtd->platform to rtdcom list.
+From this patch, rtd->platform check is no longer needed.
+It will be replaced into rtdcom.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 9c7b78558979..b4d618b6e8b0 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -1162,11 +1162,6 @@ static int soc_bind_dai_link(struct snd_soc_card *card,
+ 
+ 		rtd->platform = platform;
+ 	}
+-	if (!rtd->platform) {
+-		dev_err(card->dev, "ASoC: platform %s not registered\n",
+-			dai_link->platform_name);
+-		goto _err_defer;
+-	}
+ 
+ 	soc_add_pcm_runtime(card, rtd);
+ 	return 0;
+-- 
+2.24.1
+

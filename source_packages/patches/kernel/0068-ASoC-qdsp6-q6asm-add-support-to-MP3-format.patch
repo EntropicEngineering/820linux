@@ -1,0 +1,48 @@
+From abeb8c7f19a5afa72243c8db94a0b9fd42a978b5 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 1 Aug 2018 10:23:52 +0100
+Subject: [PATCH 068/334] ASoC: qdsp6: q6asm: add support to MP3 format
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ sound/soc/qcom/qdsp6/q6asm.c | 4 ++++
+ sound/soc/qcom/qdsp6/q6asm.h | 1 +
+ 2 files changed, 5 insertions(+)
+
+diff --git a/sound/soc/qcom/qdsp6/q6asm.c b/sound/soc/qcom/qdsp6/q6asm.c
+index 2b2c7233bb5f..f0b7103a987a 100644
+--- a/sound/soc/qcom/qdsp6/q6asm.c
++++ b/sound/soc/qcom/qdsp6/q6asm.c
+@@ -37,6 +37,7 @@
+ #define ASM_PARAM_ID_ENCDEC_ENC_CFG_BLK_V2	0x00010DA3
+ #define ASM_SESSION_CMD_RUN_V2			0x00010DAA
+ #define ASM_MEDIA_FMT_MULTI_CHANNEL_PCM_V2	0x00010DA5
++#define ASM_MEDIA_FMT_MP3			0x00010BE9
+ #define ASM_DATA_CMD_WRITE_V2			0x00010DAB
+ #define ASM_DATA_CMD_READ_V2			0x00010DAC
+ #define ASM_SESSION_CMD_SUSPEND			0x00010DEC
+@@ -869,6 +870,9 @@ int q6asm_open_write(struct audio_client *ac, uint32_t format,
+ 	open->postprocopo_id = ASM_NULL_POPP_TOPOLOGY;
+ 
+ 	switch (format) {
++	case FORMAT_MP3:
++		open->dec_fmt_id = ASM_MEDIA_FMT_MP3;
++		break;
+ 	case FORMAT_LINEAR_PCM:
+ 		open->dec_fmt_id = ASM_MEDIA_FMT_MULTI_CHANNEL_PCM_V2;
+ 		break;
+diff --git a/sound/soc/qcom/qdsp6/q6asm.h b/sound/soc/qcom/qdsp6/q6asm.h
+index 9f5fb573e4a0..2882bea51d90 100644
+--- a/sound/soc/qcom/qdsp6/q6asm.h
++++ b/sound/soc/qcom/qdsp6/q6asm.h
+@@ -31,6 +31,7 @@ enum {
+ #define MAX_SESSIONS	8
+ #define NO_TIMESTAMP    0xFF00
+ #define FORMAT_LINEAR_PCM   0x0000
++#define FORMAT_MP3   0x0001
+ 
+ typedef void (*q6asm_cb) (uint32_t opcode, uint32_t token,
+ 			  void *payload, void *priv);
+-- 
+2.24.1
+

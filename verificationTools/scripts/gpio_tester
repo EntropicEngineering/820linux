@@ -1,0 +1,40 @@
+#!/bin/sh
+#	Copyright © 2018, Intrinsyc Technologies Corp.
+#	Author : Priyank Rathod <prathod@intrinsyc.com>
+#	Usage : This script is used to test gpio for a give board
+#
+
+usage()
+{
+	echo -e "Usage\t: $0 gpio direction value"
+	echo -e "\t: $0 107 out on"
+}
+
+# Do some basic checks
+if [ "$1" = "" -o  "$2" = "" ]; then
+	usage
+	exit
+fi
+
+# Check if gpio is already exported
+if [ ! -d /sys/class/gpio/gpio$1 ]
+then
+  echo $1 > /sys/class/gpio/export
+  sleep 1 ;# Short delay while GPIO permissions are set up
+fi
+
+# Set to output
+echo $2 > /sys/class/gpio/gpio$1/direction
+
+if [ "$3" = "on" ]; then
+        # Set to high value
+	echo "Turning on the GPIO"
+        echo 1 > /sys/class/gpio/gpio$1/value
+fi
+if [ "$3" = "off" ]; then
+        # Set to low value
+	echo "Turning off the GPIO"
+        echo 0 > /sys/class/gpio/gpio$1/value
+fi
+
+echo "Value of gpio$1 is : `cat /sys/class/gpio/gpio$1/value`"

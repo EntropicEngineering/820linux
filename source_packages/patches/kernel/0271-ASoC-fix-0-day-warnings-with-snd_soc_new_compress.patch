@@ -1,0 +1,35 @@
+From 404ddac074162984f7cb77293aefead412287d7c Mon Sep 17 00:00:00 2001
+From: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com>
+Date: Tue, 29 May 2018 18:30:02 -0500
+Subject: [PATCH 271/334] ASoC: fix 0-day warnings with snd_soc_new_compress()
+
+All conditionally-defined routines in include/sound/soc.h expose a
+static inline fallback to avoid 0-day warnings and compilation issues,
+except snd_soc_new_compress().
+
+Fixes: 5db6aab6f36f ('ASoC: topology: Add support for compressed PCMs')
+Signed-off-by: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index abe218d2c723..a23ecdf3eff1 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -460,6 +460,11 @@ struct snd_soc_component *snd_soc_lookup_component(struct device *dev,
+ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num);
+ #ifdef CONFIG_SND_SOC_COMPRESS
+ int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num);
++#else
++static inline int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
++{
++	return 0;
++}
+ #endif
+ 
+ void snd_soc_disconnect_sync(struct device *dev);
+-- 
+2.24.1
+

@@ -1,0 +1,27 @@
+From d89ccb1873d589c883aa9ce82e3afcd01c316948 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Wed, 29 Nov 2017 02:38:27 +0000
+Subject: [PATCH 096/334] ASoC: soc-core: add missing EXPORT_SYMBOL_GPL() for
+ snd_soc_disconnect_sync
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 9047046c749c..345baa4f10c0 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -1401,6 +1401,7 @@ void snd_soc_disconnect_sync(struct device *dev)
+ 
+ 	snd_card_disconnect_sync(component->card->snd_card);
+ }
++EXPORT_SYMBOL_GPL(snd_soc_disconnect_sync);
+ 
+ /**
+  * snd_soc_add_dai_link - Add a DAI link dynamically
+-- 
+2.24.1
+

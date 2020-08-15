@@ -1,0 +1,36 @@
+From b9b10832ccfbe99c04cbefd087f34ba2f5485bfd Mon Sep 17 00:00:00 2001
+From: Wei Yongjun <weiyongjun1@huawei.com>
+Date: Tue, 2 Jan 2018 17:54:24 +0000
+Subject: [PATCH 230/334] slimbus: qcom: Fix return value check in
+ qcom_slim_probe()
+
+In case of error, the function devm_ioremap_resource() returns ERR_PTR()
+and never returns NULL. The NULL test in the return value check should
+be replaced with IS_ERR().
+
+Signed-off-by: Wei Yongjun <weiyongjun1@huawei.com>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/qcom-ctrl.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/slimbus/qcom-ctrl.c b/drivers/slimbus/qcom-ctrl.c
+index d39c9f928845..137783002402 100644
+--- a/drivers/slimbus/qcom-ctrl.c
++++ b/drivers/slimbus/qcom-ctrl.c
+@@ -529,9 +529,9 @@ static int qcom_slim_probe(struct platform_device *pdev)
+ 
+ 	slim_mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ctrl");
+ 	ctrl->base = devm_ioremap_resource(ctrl->dev, slim_mem);
+-	if (!ctrl->base) {
++	if (IS_ERR(ctrl->base)) {
+ 		dev_err(&pdev->dev, "IOremap failed\n");
+-		return -ENOMEM;
++		return PTR_ERR(ctrl->base);
+ 	}
+ 
+ 	sctrl->set_laddr = qcom_set_laddr;
+-- 
+2.24.1
+

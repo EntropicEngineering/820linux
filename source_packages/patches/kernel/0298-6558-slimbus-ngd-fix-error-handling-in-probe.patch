@@ -1,0 +1,33 @@
+From 0e1f74ecd48e6bf471ddc2bb3a89d184f523cf7f Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Sat, 8 Sep 2018 14:52:44 +0100
+Subject: [PATCH 298/334] [6558] slimbus: ngd: fix error handling in probe
+
+Change-Id: I4535a0cb039d41f9ca415fda54fd3e40f316297d
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/slimbus/qcom-ngd-ctrl.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/slimbus/qcom-ngd-ctrl.c b/drivers/slimbus/qcom-ngd-ctrl.c
+index 57b6e095b1e9..fc3cbde46ce4 100644
+--- a/drivers/slimbus/qcom-ngd-ctrl.c
++++ b/drivers/slimbus/qcom-ngd-ctrl.c
+@@ -1382,12 +1382,12 @@ static int qcom_slim_ngd_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	return 0;
+-err:
+-	slim_unregister_controller(&ctrl->ctrl);
+ wq_err:
+ 	qcom_slim_ngd_qmi_svc_event_deinit(&ctrl->qmi);
+ 	if (ctrl->mwq)
+ 		destroy_workqueue(ctrl->mwq);
++err:
++	slim_unregister_controller(&ctrl->ctrl);
+ 
+ 	return 0;
+ }
+-- 
+2.24.1
+

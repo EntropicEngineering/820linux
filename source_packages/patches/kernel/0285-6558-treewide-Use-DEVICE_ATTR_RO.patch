@@ -1,0 +1,36 @@
+From d5dfe2f2867d51a82949811738713777115cba19 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 15:38:45 +0530
+Subject: [PATCH 285/334] [6558] treewide: Use DEVICE_ATTR_RO
+
+Convert DEVICE_ATTR uses to DEVICE_ATTR_RO where possible.
+
+Done with perl script:
+
+$ git grep -w --name-only DEVICE_ATTR | \
+  xargs perl -i -e 'local $/; while (<>) { s/\bDEVICE_ATTR\s*\(\s*(\w+)\s*,\s*\(?(?:\s*S_IRUGO\s*|\s*0444\s*)\)?\s*,\s*\1_show\s*,\s*NULL\s*\)/DEVICE_ATTR_RO(\1)/g; print;}'
+
+https://github.com/torvalds/linux/commit/c828a8920307185b7194b575731e8387c99a5a67#diff-a54f3e9005f2b86631c8ffd98d609da2
+
+Change-Id: I8c45ac6ee24da499261ba9537a1cb774c9a98798
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ sound/soc/soc-dapm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/soc-dapm.c b/sound/soc/soc-dapm.c
+index 33d1d729ca2b..c8463ef044d1 100644
+--- a/sound/soc/soc-dapm.c
++++ b/sound/soc/soc-dapm.c
+@@ -2386,7 +2386,7 @@ static ssize_t dapm_widget_show(struct device *dev,
+ 	return count;
+ }
+ 
+-static DEVICE_ATTR(dapm_widget, 0444, dapm_widget_show, NULL);
++static DEVICE_ATTR_RO(dapm_widget);
+ 
+ struct attribute *soc_dapm_dev_attrs[] = {
+ 	&dev_attr_dapm_widget.attr,
+-- 
+2.24.1
+

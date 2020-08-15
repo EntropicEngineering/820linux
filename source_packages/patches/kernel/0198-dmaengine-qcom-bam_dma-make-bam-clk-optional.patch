@@ -1,0 +1,37 @@
+From 37dead0ba0016e8f215534a9b887305532e46d3e Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 15 Feb 2018 12:25:07 +0000
+Subject: [PATCH 198/334] dmaengine: qcom: bam_dma: make bam clk optional
+
+When BAM is remotely controlled it does not sound correct to control
+its clk on Linux side. Make it optional, so that its not mandatory
+for remote controlled BAM instances.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Vinod Koul <vinod.koul@intel.com>
+---
+ drivers/dma/qcom/bam_dma.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/dma/qcom/bam_dma.c b/drivers/dma/qcom/bam_dma.c
+index 4cc58904ee52..139e9f5e47a9 100644
+--- a/drivers/dma/qcom/bam_dma.c
++++ b/drivers/dma/qcom/bam_dma.c
+@@ -1250,8 +1250,12 @@ static int bam_dma_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	bdev->bamclk = devm_clk_get(bdev->dev, "bam_clk");
+-	if (IS_ERR(bdev->bamclk))
+-		return PTR_ERR(bdev->bamclk);
++	if (IS_ERR(bdev->bamclk)) {
++		if (!bdev->controlled_remotely)
++			return PTR_ERR(bdev->bamclk);
++
++		bdev->bamclk = NULL;
++	}
+ 
+ 	ret = clk_prepare_enable(bdev->bamclk);
+ 	if (ret) {
+-- 
+2.24.1
+

@@ -1,0 +1,54 @@
+From db6d687e65f85eecc2fac15cc36b592befbbfc09 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 15:29:02 +0530
+Subject: [PATCH 283/334] [6558] ASoC: topology: Check widget kcontrols before
+ deref.
+
+Validate the topology input before we dereference the pointer.
+
+https://github.com/torvalds/linux/commit/05bdcf12905533b8628627b6634608cd3b57c607#diff-eaf90d1933d444086df89343107f2579
+
+Change-Id: I0a794ba186d3d4e05b85ba3617efcd83b9567ea8
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ sound/soc/soc-topology.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-topology.c b/sound/soc/soc-topology.c
+index 78f1ab70bc01..5900a6bcb04e 100644
+--- a/sound/soc/soc-topology.c
++++ b/sound/soc/soc-topology.c
+@@ -447,6 +447,9 @@ static void remove_widget(struct snd_soc_component *comp,
+ 	if (dobj->ops && dobj->ops->widget_unload)
+ 		dobj->ops->widget_unload(comp, dobj);
+ 
++	if (!w->kcontrols)
++		goto free_news;
++
+ 	/*
+ 	 * Dynamic Widgets either have 1..N enum kcontrols or mixers.
+ 	 * The enum may either have an array of values or strings.
+@@ -468,7 +471,6 @@ static void remove_widget(struct snd_soc_component *comp,
+ 			kfree(se);
+ 			kfree(w->kcontrol_news[i].name);
+ 		}
+-		kfree(w->kcontrol_news);
+ 	} else {
+ 		/* volume mixer or bytes controls */
+ 		for (i = 0; w->kcontrols != NULL && i < w->num_kcontrols; i++) {
+@@ -486,8 +488,11 @@ static void remove_widget(struct snd_soc_component *comp,
+ 			snd_ctl_remove(card, kcontrol);
+ 			kfree(w->kcontrol_news[i].name);
+ 		}
+-		kfree(w->kcontrol_news);
+ 	}
++
++free_news:
++	kfree(w->kcontrol_news);
++
+ 	/* widget w is freed by soc-dapm.c */
+ }
+ 
+-- 
+2.24.1
+

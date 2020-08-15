@@ -1,0 +1,176 @@
+From 1f5e46ffb2c85ba2386f1152fe18268ffe151301 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 9 May 2018 13:56:18 +0100
+Subject: [PATCH 015/334] ASoC: qdsp6: q6common: Add qdsp6 helper functions
+
+This patch adds some common helper functions like translating dsp error
+to linux error codes and channel mappings etc.
+
+These functions are used in all the following qdsp6 drivers.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-and-tested-by: Rohit kumar <rohitkr@codeaurora.org>
+Reviewed-by: Banajit Goswami <bgoswami@codeaurora.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+
+Conflicts:
+	sound/soc/qcom/Kconfig
+	sound/soc/qcom/Makefile
+	sound/soc/qcom/qdsp6/Makefile
+	sound/soc/qcom/qdsp6/q6dsp-common.c
+	sound/soc/qcom/qdsp6/q6dsp-common.h
+	sound/soc/qcom/qdsp6/q6dsp-errno.h
+---
+ sound/soc/qcom/Kconfig              | 37 -----------------------------
+ sound/soc/qcom/Makefile             |  2 --
+ sound/soc/qcom/qdsp6/Makefile       |  7 ------
+ sound/soc/qcom/qdsp6/q6dsp-common.c |  6 ++---
+ sound/soc/qcom/qdsp6/q6dsp-common.h |  6 ++---
+ sound/soc/qcom/qdsp6/q6dsp-errno.h  |  2 +-
+ 6 files changed, 7 insertions(+), 53 deletions(-)
+
+diff --git a/sound/soc/qcom/Kconfig b/sound/soc/qcom/Kconfig
+index c328842360bd..b44a9fcd7ed3 100644
+--- a/sound/soc/qcom/Kconfig
++++ b/sound/soc/qcom/Kconfig
+@@ -44,49 +44,12 @@ config SND_SOC_APQ8016_SBC
+ config SND_SOC_QDSP6_COMMON
+ 	tristate
+ 
+-config SND_SOC_QDSP6_AFE
+-	tristate
+-
+-config SND_SOC_QDSP6_AFE_DAI
+-	tristate
+-
+-config SND_SOC_QDSP6_ADM
+-	tristate
+-
+-config SND_SOC_QDSP6_ROUTING
+-	tristate
+-
+-config SND_SOC_QDSP6_ASM
+-	tristate
+-
+-config SND_SOC_QDSP6_ASM_DAI
+-	tristate
+-
+-config SND_SOC_QDSP6_CORE
+-	tristate
+-
+ config SND_SOC_QDSP6
+ 	tristate "SoC ALSA audio driver for QDSP6"
+ 	depends on QCOM_APR && HAS_DMA
+ 	select SND_SOC_QDSP6_COMMON
+-	select SND_SOC_QDSP6_AFE
+-	select SND_SOC_QDSP6_AFE_DAI
+-	select SND_SOC_QDSP6_ADM
+-	select SND_SOC_QDSP6_ROUTING
+-	select SND_SOC_QDSP6_ASM
+-	select SND_SOC_QDSP6_ASM_DAI
+-	select SND_SOC_QDSP6_CORE
+ 	help
+ 	 To add support for MSM QDSP6 Soc Audio.
+ 	 This will enable sound soc platform specific
+ 	 audio drivers. This includes q6asm, q6adm,
+ 	 q6afe interfaces to DSP using apr.
+-
+-config SND_SOC_MSM8996
+-	tristate "SoC Machine driver for MSM8996 and APQ8096 boards"
+-	depends on QCOM_APR
+-	select SND_SOC_QDSP6
+-	help
+-          Support for Qualcomm Technologies LPASS audio block in
+-          APQ8096 SoC-based systems.
+-          Say Y if you want to use audio device on this SoCs
+diff --git a/sound/soc/qcom/Makefile b/sound/soc/qcom/Makefile
+index 206945bb9ba1..0276717917c0 100644
+--- a/sound/soc/qcom/Makefile
++++ b/sound/soc/qcom/Makefile
+@@ -13,11 +13,9 @@ obj-$(CONFIG_SND_SOC_LPASS_APQ8016) += snd-soc-lpass-apq8016.o
+ # Machine
+ snd-soc-storm-objs := storm.o
+ snd-soc-apq8016-sbc-objs := apq8016_sbc.o
+-snd-soc-apq8096-objs := apq8096.o
+ 
+ obj-$(CONFIG_SND_SOC_STORM) += snd-soc-storm.o
+ obj-$(CONFIG_SND_SOC_APQ8016_SBC) += snd-soc-apq8016-sbc.o
+-obj-$(CONFIG_SND_SOC_MSM8996) += snd-soc-apq8096.o
+ 
+ #DSP lib
+ obj-$(CONFIG_SND_SOC_QDSP6) += qdsp6/
+diff --git a/sound/soc/qcom/qdsp6/Makefile b/sound/soc/qcom/qdsp6/Makefile
+index af44711eba24..accebdb49306 100644
+--- a/sound/soc/qcom/qdsp6/Makefile
++++ b/sound/soc/qcom/qdsp6/Makefile
+@@ -1,8 +1 @@
+ obj-$(CONFIG_SND_SOC_QDSP6_COMMON) += q6dsp-common.o
+-obj-$(CONFIG_SND_SOC_QDSP6_AFE) += q6afe.o
+-obj-$(CONFIG_SND_SOC_QDSP6_AFE_DAI) += q6afe-dai.o
+-obj-$(CONFIG_SND_SOC_QDSP6_ADM) += q6adm.o
+-obj-$(CONFIG_SND_SOC_QDSP6_ROUTING) += q6routing.o
+-obj-$(CONFIG_SND_SOC_QDSP6_ASM) += q6asm.o
+-obj-$(CONFIG_SND_SOC_QDSP6_ASM_DAI) += q6asm-dai.o
+-obj-$(CONFIG_SND_SOC_QDSP6_CORE) += q6core.o
+diff --git a/sound/soc/qcom/qdsp6/q6dsp-common.c b/sound/soc/qcom/qdsp6/q6dsp-common.c
+index c342a073144c..d393003492c7 100644
+--- a/sound/soc/qcom/qdsp6/q6dsp-common.c
++++ b/sound/soc/qcom/qdsp6/q6dsp-common.c
+@@ -1,5 +1,5 @@
+ // SPDX-License-Identifier: GPL-2.0
+-// Copyright (c) 2011-2017, The Linux Foundation
++// Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
+ // Copyright (c) 2018, Linaro Limited
+ 
+ #include "q6dsp-common.h"
+@@ -8,9 +8,9 @@
+ #include <linux/string.h>
+ #include <linux/errno.h>
+ 
+-int q6dsp_map_channels(u8 ch_map[PCM_FORMAT_MAX_NUM_CHANNEL], int ch)
++int q6dsp_map_channels(u8 ch_map[PCM_MAX_NUM_CHANNEL], int ch)
+ {
+-	memset(ch_map, 0, PCM_FORMAT_MAX_NUM_CHANNEL);
++	memset(ch_map, 0, PCM_MAX_NUM_CHANNEL);
+ 
+ 	switch (ch) {
+ 	case 1:
+diff --git a/sound/soc/qcom/qdsp6/q6dsp-common.h b/sound/soc/qcom/qdsp6/q6dsp-common.h
+index 32386f4a6432..01094d108b8a 100644
+--- a/sound/soc/qcom/qdsp6/q6dsp-common.h
++++ b/sound/soc/qcom/qdsp6/q6dsp-common.h
+@@ -1,11 +1,11 @@
+-// SPDX-License-Identifier: GPL-2.0
++/* SPDX-License-Identifier: GPL-2.0 */
+ 
+ #ifndef __Q6DSP_COMMON_H__
+ #define __Q6DSP_COMMON_H__
+ 
+ #include <linux/kernel.h>
+ 
+-#define PCM_FORMAT_MAX_NUM_CHANNEL  8
++#define PCM_MAX_NUM_CHANNEL  8
+ #define PCM_CHANNEL_NULL 0
+ 
+ #define PCM_CHANNEL_FL    1	/* Front left channel. */
+@@ -19,6 +19,6 @@
+ #define PCM_CHANNEL_RB   9	/* Right back channel; Rear right channel. */
+ #define PCM_CHANNELS   10	/* Top surround channel. */
+ 
+-int q6dsp_map_channels(u8 ch_map[PCM_FORMAT_MAX_NUM_CHANNEL], int ch);
++int q6dsp_map_channels(u8 ch_map[PCM_MAX_NUM_CHANNEL], int ch);
+ 
+ #endif /* __Q6DSP_COMMON_H__ */
+diff --git a/sound/soc/qcom/qdsp6/q6dsp-errno.h b/sound/soc/qcom/qdsp6/q6dsp-errno.h
+index 6285e1782824..1ec00ff8c1d2 100644
+--- a/sound/soc/qcom/qdsp6/q6dsp-errno.h
++++ b/sound/soc/qcom/qdsp6/q6dsp-errno.h
+@@ -1,4 +1,4 @@
+-// SPDX-License-Identifier: GPL-2.0
++/* SPDX-License-Identifier: GPL-2.0 */
+ 
+ #ifndef __Q6DSP_ERR_NO_H__
+ #define __Q6DSP_ERR_NO_H__
+-- 
+2.24.1
+

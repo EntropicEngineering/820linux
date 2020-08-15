@@ -1,0 +1,38 @@
+From 6bd63c38fca419e34b9f31120f3fdea7ac6baa89 Mon Sep 17 00:00:00 2001
+From: Benson Leung <bleung@chromium.org>
+Date: Wed, 22 Nov 2017 12:56:43 -0800
+Subject: [PATCH 011/334] ASoC: qcom: apq8016-sbc: Map BTN_0 to KEY_PLAYPAUSE
+
+The Android 3.5mm Headset jack specification mentions that BTN_0 should
+be mapped to KEY_MEDIA, but this is less logical than KEY_PLAYPAUSE,
+which has much broader userspace support.
+
+For example, the Chrome OS userspace now supports KEY_PLAYPAUSE to toggle
+play/pause of videos and audio, but does not handle KEY_MEDIA.
+
+Furthermore, Android itself now supports KEY_PLAYPAUSE equivalently, as the
+new USB headset spec requires KEY_PLAYPAUSE for BTN_0.
+https://source.android.com/devices/accessories/headset/usb-headset-spec
+
+Signed-off-by: Benson Leung <bleung@chromium.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/qcom/apq8016_sbc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/qcom/apq8016_sbc.c b/sound/soc/qcom/apq8016_sbc.c
+index d49adc822a11..03851fedd1e2 100644
+--- a/sound/soc/qcom/apq8016_sbc.c
++++ b/sound/soc/qcom/apq8016_sbc.c
+@@ -92,7 +92,7 @@ static int apq8016_sbc_dai_init(struct snd_soc_pcm_runtime *rtd)
+ 
+ 		jack = pdata->jack.jack;
+ 
+-		snd_jack_set_key(jack, SND_JACK_BTN_0, KEY_MEDIA);
++		snd_jack_set_key(jack, SND_JACK_BTN_0, KEY_PLAYPAUSE);
+ 		snd_jack_set_key(jack, SND_JACK_BTN_1, KEY_VOICECOMMAND);
+ 		snd_jack_set_key(jack, SND_JACK_BTN_2, KEY_VOLUMEUP);
+ 		snd_jack_set_key(jack, SND_JACK_BTN_3, KEY_VOLUMEDOWN);
+-- 
+2.24.1
+

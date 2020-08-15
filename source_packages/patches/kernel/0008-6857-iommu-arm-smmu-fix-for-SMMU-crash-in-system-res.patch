@@ -1,0 +1,39 @@
+From 083c887345933788d848cd048ce30e326efbc655 Mon Sep 17 00:00:00 2001
+From: Mahaboob Vali <mvali@intrinsyc.com>
+Date: Thu, 16 Aug 2018 17:00:18 +0530
+Subject: [PATCH 008/334] [6857] iommu/arm-smmu: fix for SMMU crash in system
+ resume
+
+This change is needed to make SMMU resume work correctly.
+All SMMU related clocks should be enabled before device reset.
+
+Change-Id: I990011f73473b6d4c590d0c6d126b223d828b724
+---
+ drivers/iommu/arm-smmu.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/drivers/iommu/arm-smmu.c b/drivers/iommu/arm-smmu.c
+index d2c198d5255b..b99e009aca5c 100644
+--- a/drivers/iommu/arm-smmu.c
++++ b/drivers/iommu/arm-smmu.c
+@@ -2347,6 +2347,17 @@ static void arm_smmu_device_shutdown(struct platform_device *pdev)
+ static int __maybe_unused arm_smmu_pm_resume(struct device *dev)
+ {
+ 	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
++	int err;
++
++	pm_runtime_enable(smmu->dev);
++
++	err = clk_bulk_prepare(smmu->num_clks, smmu->clks);
++	if(err)
++		return err;
++
++	err = clk_bulk_enable(smmu->num_clks, smmu->clks);
++	if(err)
++		return err;
+ 
+ 	arm_smmu_device_reset(smmu);
+ 	return 0;
+-- 
+2.24.1
+

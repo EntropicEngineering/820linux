@@ -1,0 +1,82 @@
+From e706827e93f4e1feb72484e4b3f9ba1a477ec0bc Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Wed, 20 Dec 2017 01:48:29 +0000
+Subject: [PATCH 101/334] ASoC: soc-core: remove dai_drv from snd_soc_component
+
+ALSA SoC has some duplicate parameter.
+snd_soc_component::dai_drv is one of them.
+
+Each DAI is keeping its driver as snd_soc_dai::driver,
+and component has dai_list.
+This means, we can reach to each DAI and its driver by using dai_link.
+Thus, there is no need to keep DAI driver pointer on component.
+Let's remove it
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h  |  1 -
+ sound/soc/soc-core.c | 14 ++++++++++----
+ 2 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index ded8dc9fdc9e..008b7480ce6d 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -860,7 +860,6 @@ struct snd_soc_component {
+ 	struct list_head card_aux_list; /* for auxiliary bound components */
+ 	struct list_head card_list;
+ 
+-	struct snd_soc_dai_driver *dai_drv;
+ 	int num_dai;
+ 
+ 	const struct snd_soc_component_driver *driver;
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 2d392f2d7ffe..d1f7e639d5b1 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -3162,7 +3162,7 @@ static struct snd_soc_dai *soc_add_dai(struct snd_soc_component *component,
+ 	if (!dai->driver->ops)
+ 		dai->driver->ops = &null_dai_ops;
+ 
+-	list_add(&dai->list, &component->dai_list);
++	list_add_tail(&dai->list, &component->dai_list);
+ 	component->num_dai++;
+ 
+ 	dev_dbg(dev, "ASoC: Registered DAI '%s'\n", dai->name);
+@@ -3189,8 +3189,6 @@ static int snd_soc_register_dais(struct snd_soc_component *component,
+ 
+ 	dev_dbg(dev, "ASoC: dai register %s #%zu\n", dev_name(dev), count);
+ 
+-	component->dai_drv = dai_drv;
+-
+ 	for (i = 0; i < count; i++) {
+ 
+ 		dai = soc_add_dai(component, dai_drv + i,
+@@ -4367,6 +4365,7 @@ int snd_soc_get_dai_name(struct of_phandle_args *args,
+ 							     args,
+ 							     dai_name);
+ 		} else {
++			struct snd_soc_dai *dai;
+ 			int id = -1;
+ 
+ 			switch (args->args_count) {
+@@ -4388,7 +4387,14 @@ int snd_soc_get_dai_name(struct of_phandle_args *args,
+ 
+ 			ret = 0;
+ 
+-			*dai_name = pos->dai_drv[id].name;
++			/* find target DAI */
++			list_for_each_entry(dai, &pos->dai_list, list) {
++				if (id == 0)
++					break;
++				id--;
++			}
++
++			*dai_name = dai->driver->name;
+ 			if (!*dai_name)
+ 				*dai_name = pos->name;
+ 		}
+-- 
+2.24.1
+

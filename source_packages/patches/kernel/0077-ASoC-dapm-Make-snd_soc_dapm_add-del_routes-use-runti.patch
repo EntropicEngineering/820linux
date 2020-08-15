@@ -1,0 +1,41 @@
+From bcd540adefc9d469f7653a7b157800f6c5281d27 Mon Sep 17 00:00:00 2001
+From: Stuart Henderson <stuarth@opensource.cirrus.com>
+Date: Thu, 21 Sep 2017 11:02:12 +0100
+Subject: [PATCH 077/334] ASoC: dapm: Make snd_soc_dapm_add/del_routes use
+ runtime mutex subclass
+
+Make snd_soc_dapm_add_routes and snd_soc_dapm_del_routes use the
+SND_SOC_DAPM_CLASS_RUNTIME dapm subclass to allow dynamic dapm route
+updates.
+
+Signed-off-by: Stuart Henderson <stuarth@opensource.cirrus.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-dapm.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-dapm.c b/sound/soc/soc-dapm.c
+index 8947ccab5939..cb4d3994f4df 100644
+--- a/sound/soc/soc-dapm.c
++++ b/sound/soc/soc-dapm.c
+@@ -2886,7 +2886,7 @@ int snd_soc_dapm_add_routes(struct snd_soc_dapm_context *dapm,
+ {
+ 	int i, r, ret = 0;
+ 
+-	mutex_lock_nested(&dapm->card->dapm_mutex, SND_SOC_DAPM_CLASS_INIT);
++	mutex_lock_nested(&dapm->card->dapm_mutex, SND_SOC_DAPM_CLASS_RUNTIME);
+ 	for (i = 0; i < num; i++) {
+ 		r = snd_soc_dapm_add_route(dapm, route);
+ 		if (r < 0) {
+@@ -2917,7 +2917,7 @@ int snd_soc_dapm_del_routes(struct snd_soc_dapm_context *dapm,
+ {
+ 	int i;
+ 
+-	mutex_lock_nested(&dapm->card->dapm_mutex, SND_SOC_DAPM_CLASS_INIT);
++	mutex_lock_nested(&dapm->card->dapm_mutex, SND_SOC_DAPM_CLASS_RUNTIME);
+ 	for (i = 0; i < num; i++) {
+ 		snd_soc_dapm_del_route(dapm, route);
+ 		route++;
+-- 
+2.24.1
+

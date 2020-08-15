@@ -1,0 +1,127 @@
+From 7bb1b65323d5fbd6eb307d80f7f8ca405c154740 Mon Sep 17 00:00:00 2001
+From: Olivier Moysan <olivier.moysan@st.com>
+Date: Mon, 19 Feb 2018 16:00:36 +0100
+Subject: [PATCH 125/334] ASoC: dmaengine_pcm: add processing support
+
+Allow dmaengine client to optionally register a processing callback.
+This callback is intended to apply processing
+on samples in buffer copied from/to user space, before/after DMA transfer.
+
+Signed-off-by: Olivier Moysan <olivier.moysan@st.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/dmaengine_pcm.h         |  3 ++
+ sound/soc/soc-generic-dmaengine-pcm.c | 62 ++++++++++++++++++++++++++-
+ 2 files changed, 63 insertions(+), 2 deletions(-)
+
+diff --git a/include/sound/dmaengine_pcm.h b/include/sound/dmaengine_pcm.h
+index 8a5a8404966e..47ef486852ed 100644
+--- a/include/sound/dmaengine_pcm.h
++++ b/include/sound/dmaengine_pcm.h
+@@ -140,6 +140,9 @@ struct snd_dmaengine_pcm_config {
+ 	struct dma_chan *(*compat_request_channel)(
+ 			struct snd_soc_pcm_runtime *rtd,
+ 			struct snd_pcm_substream *substream);
++	int (*process)(struct snd_pcm_substream *substream,
++		       int channel, unsigned long hwoff,
++		       void *buf, unsigned long bytes);
+ 	dma_filter_fn compat_filter_fn;
+ 	struct device *dma_dev;
+ 	const char *chan_names[SNDRV_PCM_STREAM_LAST + 1];
+diff --git a/sound/soc/soc-generic-dmaengine-pcm.c b/sound/soc/soc-generic-dmaengine-pcm.c
+index 785f25ede3e5..567fbdfd1ca9 100644
+--- a/sound/soc/soc-generic-dmaengine-pcm.c
++++ b/sound/soc/soc-generic-dmaengine-pcm.c
+@@ -341,6 +341,41 @@ static snd_pcm_uframes_t dmaengine_pcm_pointer(
+ 		return snd_dmaengine_pcm_pointer(substream);
+ }
+ 
++static int dmaengine_copy_user(struct snd_pcm_substream *substream,
++			       int channel, unsigned long hwoff,
++			       void *buf, unsigned long bytes)
++{
++	struct snd_soc_pcm_runtime *rtd = substream->private_data;
++	struct snd_soc_component *component =
++		snd_soc_rtdcom_lookup(rtd, SND_DMAENGINE_PCM_DRV_NAME);
++	struct snd_pcm_runtime *runtime = substream->runtime;
++	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
++	int (*process)(struct snd_pcm_substream *substream,
++		       int channel, unsigned long hwoff,
++		       void *buf, unsigned long bytes) = pcm->config->process;
++	bool is_playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
++	void *dma_ptr = runtime->dma_area + hwoff +
++			channel * (runtime->dma_bytes / runtime->channels);
++	int ret;
++
++	if (is_playback)
++		if (copy_from_user(dma_ptr, (void __user *)buf, bytes))
++			return -EFAULT;
++
++	if (process) {
++		ret = process(substream, channel, hwoff,
++			      (void __user *)buf, bytes);
++		if (ret < 0)
++			return ret;
++	}
++
++	if (!is_playback)
++		if (copy_to_user((void __user *)buf, dma_ptr, bytes))
++			return -EFAULT;
++
++	return 0;
++}
++
+ static const struct snd_pcm_ops dmaengine_pcm_ops = {
+ 	.open		= dmaengine_pcm_open,
+ 	.close		= snd_dmaengine_pcm_close,
+@@ -351,6 +386,17 @@ static const struct snd_pcm_ops dmaengine_pcm_ops = {
+ 	.pointer	= dmaengine_pcm_pointer,
+ };
+ 
++static const struct snd_pcm_ops dmaengine_pcm_process_ops = {
++	.open		= dmaengine_pcm_open,
++	.close		= snd_dmaengine_pcm_close,
++	.ioctl		= snd_pcm_lib_ioctl,
++	.hw_params	= dmaengine_pcm_hw_params,
++	.hw_free	= snd_pcm_lib_free_pages,
++	.trigger	= snd_dmaengine_pcm_trigger,
++	.pointer	= dmaengine_pcm_pointer,
++	.copy_user	= dmaengine_copy_user,
++};
++
+ static const struct snd_soc_component_driver dmaengine_pcm_component = {
+ 	.name		= SND_DMAENGINE_PCM_DRV_NAME,
+ 	.probe_order	= SND_SOC_COMP_ORDER_LATE,
+@@ -358,6 +404,13 @@ static const struct snd_soc_component_driver dmaengine_pcm_component = {
+ 	.pcm_new	= dmaengine_pcm_new,
+ };
+ 
++static const struct snd_soc_component_driver dmaengine_pcm_component_process = {
++	.name		= SND_DMAENGINE_PCM_DRV_NAME,
++	.probe_order	= SND_SOC_COMP_ORDER_LATE,
++	.ops		= &dmaengine_pcm_process_ops,
++	.pcm_new	= dmaengine_pcm_new,
++};
++
+ static const char * const dmaengine_pcm_dma_channel_names[] = {
+ 	[SNDRV_PCM_STREAM_PLAYBACK] = "tx",
+ 	[SNDRV_PCM_STREAM_CAPTURE] = "rx",
+@@ -453,8 +506,13 @@ int snd_dmaengine_pcm_register(struct device *dev,
+ 	if (ret)
+ 		goto err_free_pcm;
+ 
+-	ret = snd_soc_add_component(dev, &pcm->component,
+-				    &dmaengine_pcm_component, NULL, 0);
++	if (config && config->process)
++		ret = snd_soc_add_component(dev, &pcm->component,
++					    &dmaengine_pcm_component_process,
++					    NULL, 0);
++	else
++		ret = snd_soc_add_component(dev, &pcm->component,
++					    &dmaengine_pcm_component, NULL, 0);
+ 	if (ret)
+ 		goto err_free_dma;
+ 
+-- 
+2.24.1
+

@@ -1,0 +1,94 @@
+From 9b150bdb336fefc1f5b790a9d6e090124a355ec7 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Tue, 2 Apr 2019 17:18:26 +0530
+Subject: [PATCH 328/334] Add support for controls required by gstreamer V4L2
+ H265 encoder module.
+
+* V4L2_CID_MPEG_VIDEO_HEVC_PROFILE
+* V4L2_CID_MPEG_VIDEO_HEVC_LEVEL
+
+This is originally from below commit.
+
+https://patchwork.linuxtv.org/patch/53436/
+
+Change-Id: I6ef1c5f27aa152e8ee4f85d72a145f23d8b683d7
+Signed-off-by: Kelvin Lawson <klawson@lisden.com>
+---
+ drivers/media/platform/qcom/venus/core.h      |  2 ++
+ .../media/platform/qcom/venus/venc_ctrls.c    | 21 ++++++++++++++++++-
+ 2 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/platform/qcom/venus/core.h b/drivers/media/platform/qcom/venus/core.h
+index 0360d295f4c8..7716e975daf1 100644
+--- a/drivers/media/platform/qcom/venus/core.h
++++ b/drivers/media/platform/qcom/venus/core.h
+@@ -159,11 +159,13 @@ struct venc_controls {
+ 	struct {
+ 		u32 mpeg4;
+ 		u32 h264;
++		u32 hevc;
+ 		u32 vpx;
+ 	} profile;
+ 	struct {
+ 		u32 mpeg4;
+ 		u32 h264;
++		u32 hevc;
+ 	} level;
+ };
+ 
+diff --git a/drivers/media/platform/qcom/venus/venc_ctrls.c b/drivers/media/platform/qcom/venus/venc_ctrls.c
+index 21e938a28662..38565c506baa 100644
+--- a/drivers/media/platform/qcom/venus/venc_ctrls.c
++++ b/drivers/media/platform/qcom/venus/venc_ctrls.c
+@@ -101,6 +101,9 @@ static int venc_op_s_ctrl(struct v4l2_ctrl *ctrl)
+ 	case V4L2_CID_MPEG_VIDEO_H264_PROFILE:
+ 		ctr->profile.h264 = ctrl->val;
+ 		break;
++	case V4L2_CID_MPEG_VIDEO_HEVC_PROFILE:
++		ctr->profile.hevc = ctrl->val;
++		break;
+ 	case V4L2_CID_MPEG_VIDEO_VPX_PROFILE:
+ 		ctr->profile.vpx = ctrl->val;
+ 		break;
+@@ -110,6 +113,9 @@ static int venc_op_s_ctrl(struct v4l2_ctrl *ctrl)
+ 	case V4L2_CID_MPEG_VIDEO_H264_LEVEL:
+ 		ctr->level.h264 = ctrl->val;
+ 		break;
++	case V4L2_CID_MPEG_VIDEO_HEVC_LEVEL:
++		ctr->level.hevc = ctrl->val;
++		break;
+ 	case V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP:
+ 		ctr->h264_i_qp = ctrl->val;
+ 		break;
+@@ -188,7 +194,7 @@ int venc_ctrl_init(struct venus_inst *inst)
+ {
+ 	int ret;
+ 
+-	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, 27);
++	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, 29);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -216,6 +222,19 @@ int venc_ctrl_init(struct venus_inst *inst)
+ 		V4L2_MPEG_VIDEO_MPEG4_LEVEL_5,
+ 		0, V4L2_MPEG_VIDEO_MPEG4_LEVEL_0);
+ 
++	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
++		V4L2_CID_MPEG_VIDEO_HEVC_PROFILE,
++		V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10,
++		~((1 << V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN) |
++		  (1 << V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_STILL_PICTURE) |
++		  (1 << V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10)),
++		V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN);
++
++	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
++		V4L2_CID_MPEG_VIDEO_HEVC_LEVEL,
++		V4L2_MPEG_VIDEO_HEVC_LEVEL_6_2,
++		0, V4L2_MPEG_VIDEO_HEVC_LEVEL_1);
++
+ 	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+ 		V4L2_CID_MPEG_VIDEO_H264_PROFILE,
+ 		V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH,
+-- 
+2.24.1
+

@@ -1,0 +1,43 @@
+From cf8a9f68c860b78cb19f2c817c4d029daa7b20a5 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert@linux-m68k.org>
+Date: Sun, 8 Apr 2018 11:02:34 +0200
+Subject: [PATCH 233/334] slimbus: Fix out-of-bounds access in slim_slicesize()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+With gcc-4.1.2:
+
+    slimbus/messaging.c: In function ‘slim_slicesize’:
+    slimbus/messaging.c:186: warning: statement with no effect
+
+Indeed, clamp() is a macro not operating in-place, but returning the
+clamped value.  Hence the value is not clamped at all, which may lead to
+an out-of-bounds access.
+
+Fix this by assigning the clamped value.
+
+Fixes: afbdcc7c384b0d44 ("slimbus: Add messaging APIs to slimbus framework")
+Signed-off-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Cc: stable <stable@vger.kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/messaging.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index 884419c37e84..457ea1f8db30 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -183,7 +183,7 @@ static u16 slim_slicesize(int code)
+ 		0, 1, 2, 3, 3, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7
+ 	};
+ 
+-	clamp(code, 1, (int)ARRAY_SIZE(sizetocode));
++	code = clamp(code, 1, (int)ARRAY_SIZE(sizetocode));
+ 
+ 	return sizetocode[code - 1];
+ }
+-- 
+2.24.1
+

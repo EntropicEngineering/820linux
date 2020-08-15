@@ -1,0 +1,28 @@
+From 8ac3ded5e2751e092db8f19eea3a64cdd1221ded Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 16 May 2018 11:57:31 +0100
+Subject: [PATCH 236/334] slimbus: messaging: initialize completion correctly
+
+slim_val_inf can contain random value from stack, make sure the completion
+is initialized to NULL while filling the msg.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/slimbus/messaging.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index 1c57b631031a..e3605ed1c459 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -246,6 +246,7 @@ static void slim_fill_msg(struct slim_val_inf *msg, u32 addr,
+ 	msg->num_bytes = count;
+ 	msg->rbuf = rbuf;
+ 	msg->wbuf = wbuf;
++	msg->comp = NULL;
+ }
+ 
+ /**
+-- 
+2.24.1
+

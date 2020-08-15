@@ -1,0 +1,30 @@
+From 776cbf073100eb932b3b2ea21d26813c0afeedd6 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 4 Jul 2018 10:49:42 +0100
+Subject: [PATCH 053/334] ASoC: qdsp6: q6afe-dai: Do not overwrite slim dai
+ num_channels
+
+num_channels for slim dais are aready set int set_channel_map,
+do not overwrite them in hw_params.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/qcom/qdsp6/q6afe-dai.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/sound/soc/qcom/qdsp6/q6afe-dai.c b/sound/soc/qcom/qdsp6/q6afe-dai.c
+index fba3a4b26ba6..e7f809e3ee1f 100644
+--- a/sound/soc/qcom/qdsp6/q6afe-dai.c
++++ b/sound/soc/qcom/qdsp6/q6afe-dai.c
+@@ -81,7 +81,6 @@ static int q6slim_hw_params(struct snd_pcm_substream *substream,
+ 	struct q6afe_dai_data *dai_data = dev_get_drvdata(dai->dev);
+ 	struct q6afe_slim_cfg *slim = &dai_data->port_config[dai->id].slim;
+ 
+-	slim->num_channels = params_channels(params);
+ 	slim->sample_rate = params_rate(params);
+ 
+ 	switch (params_format(params)) {
+-- 
+2.24.1
+

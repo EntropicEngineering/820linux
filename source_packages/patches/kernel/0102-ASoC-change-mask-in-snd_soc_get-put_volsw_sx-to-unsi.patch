@@ -1,0 +1,46 @@
+From 445d850d737878437f2f3e98338bd4d48583a2c2 Mon Sep 17 00:00:00 2001
+From: Banajit Goswami <bgoswami@codeaurora.org>
+Date: Sun, 31 Dec 2017 20:40:14 -0800
+Subject: [PATCH 102/334] ASoC: change mask in snd_soc_get/put_volsw_sx to
+ unsigned int
+
+If the result of (min + max) is negative in functions
+snd_soc_get_volsw_sx() or snd_soc_put_volsw_sx(), there
+will be an overflow for the variable 'mask'.
+   UBSAN: Undefined behaviour in sound/soc/soc-ops.c:382:6
+   signed integer overflow:
+   -2147483648 - 1 cannot be represented in type 'int'
+
+Fix this by updating the variable type of 'mask' to unsigned int.
+
+Signed-off-by: Banajit Goswami <bgoswami@codeaurora.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-ops.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-ops.c b/sound/soc/soc-ops.c
+index 500f98c730b9..7144a51ddfa9 100644
+--- a/sound/soc/soc-ops.c
++++ b/sound/soc/soc-ops.c
+@@ -378,7 +378,7 @@ int snd_soc_get_volsw_sx(struct snd_kcontrol *kcontrol,
+ 	unsigned int rshift = mc->rshift;
+ 	int max = mc->max;
+ 	int min = mc->min;
+-	int mask = (1 << (fls(min + max) - 1)) - 1;
++	unsigned int mask = (1 << (fls(min + max) - 1)) - 1;
+ 	unsigned int val;
+ 	int ret;
+ 
+@@ -423,7 +423,7 @@ int snd_soc_put_volsw_sx(struct snd_kcontrol *kcontrol,
+ 	unsigned int rshift = mc->rshift;
+ 	int max = mc->max;
+ 	int min = mc->min;
+-	int mask = (1 << (fls(min + max) - 1)) - 1;
++	unsigned int mask = (1 << (fls(min + max) - 1)) - 1;
+ 	int err = 0;
+ 	unsigned int val, val_mask, val2 = 0;
+ 
+-- 
+2.24.1
+

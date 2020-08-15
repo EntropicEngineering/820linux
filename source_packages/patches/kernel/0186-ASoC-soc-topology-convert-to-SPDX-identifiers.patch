@@ -1,0 +1,90 @@
+From 3c0dcce1f4a81e35f6f864b5d289410e6a5e3d03 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:24:45 +0000
+Subject: [PATCH 186/334] ASoC: soc-topology: convert to SPDX identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc-topology.h |  7 ++----
+ sound/soc/soc-topology.c     | 47 ++++++++++++++++--------------------
+ 2 files changed, 23 insertions(+), 31 deletions(-)
+
+diff --git a/include/sound/soc-topology.h b/include/sound/soc-topology.h
+index 401ef2c45d6c..fa4b8413d2e2 100644
+--- a/include/sound/soc-topology.h
++++ b/include/sound/soc-topology.h
+@@ -1,13 +1,10 @@
+-/*
++/* SPDX-License-Identifier: GPL-2.0
++ *
+  * linux/sound/soc-topology.h -- ALSA SoC Firmware Controls and DAPM
+  *
+  * Copyright (C) 2012 Texas Instruments Inc.
+  * Copyright (C) 2015 Intel Corporation.
+  *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License version 2 as
+- * published by the Free Software Foundation.
+- *
+  * Simple file API to load FW that includes mixers, coefficients, DAPM graphs,
+  * algorithms, equalisers, DAIs, widgets, FE caps, BE caps, codec link caps etc.
+  */
+diff --git a/sound/soc/soc-topology.c b/sound/soc/soc-topology.c
+index 3c3ff1a60cc1..ff8bb28fc568 100644
+--- a/sound/soc/soc-topology.c
++++ b/sound/soc/soc-topology.c
+@@ -1,29 +1,24 @@
+-/*
+- * soc-topology.c  --  ALSA SoC Topology
+- *
+- * Copyright (C) 2012 Texas Instruments Inc.
+- * Copyright (C) 2015 Intel Corporation.
+- *
+- * Authors: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+- *		K, Mythri P <mythri.p.k@intel.com>
+- *		Prusty, Subhransu S <subhransu.s.prusty@intel.com>
+- *		B, Jayachandran <jayachandran.b@intel.com>
+- *		Abdullah, Omair M <omair.m.abdullah@intel.com>
+- *		Jin, Yao <yao.jin@intel.com>
+- *		Lin, Mengdong <mengdong.lin@intel.com>
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- *
+- *  Add support to read audio firmware topology alongside firmware text. The
+- *  topology data can contain kcontrols, DAPM graphs, widgets, DAIs, DAI links,
+- *  equalizers, firmware, coefficients etc.
+- *
+- *  This file only manages the core ALSA and ASoC components, all other bespoke
+- *  firmware topology data is passed to component drivers for bespoke handling.
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++// soc-topology.c  --  ALSA SoC Topology
++//
++// Copyright (C) 2012 Texas Instruments Inc.
++// Copyright (C) 2015 Intel Corporation.
++//
++// Authors: Liam Girdwood <liam.r.girdwood@linux.intel.com>
++//		K, Mythri P <mythri.p.k@intel.com>
++//		Prusty, Subhransu S <subhransu.s.prusty@intel.com>
++//		B, Jayachandran <jayachandran.b@intel.com>
++//		Abdullah, Omair M <omair.m.abdullah@intel.com>
++//		Jin, Yao <yao.jin@intel.com>
++//		Lin, Mengdong <mengdong.lin@intel.com>
++//
++//  Add support to read audio firmware topology alongside firmware text. The
++//  topology data can contain kcontrols, DAPM graphs, widgets, DAIs, DAI links,
++//  equalizers, firmware, coefficients etc.
++//
++//  This file only manages the core ALSA and ASoC components, all other bespoke
++//  firmware topology data is passed to component drivers for bespoke handling.
+ 
+ #include <linux/kernel.h>
+ #include <linux/export.h>
+-- 
+2.24.1
+

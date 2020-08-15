@@ -1,0 +1,45 @@
+From d5e424f478e0ddf65162918077eca86e37646530 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Thu, 5 Apr 2018 14:25:18 +0300
+Subject: [PATCH 134/334] ASoC: topology: fix some tiny memory leaks
+
+These tiny memory leaks don't have a huge real life impact but they
+cause static checker warnings so let's fix them.
+
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-topology.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-topology.c b/sound/soc/soc-topology.c
+index 023b61677f8c..986b8b2f90fb 100644
+--- a/sound/soc/soc-topology.c
++++ b/sound/soc/soc-topology.c
+@@ -1325,8 +1325,10 @@ static struct snd_kcontrol_new *soc_tplg_dapm_widget_denum_create(
+ 			ec->hdr.name);
+ 
+ 		kc[i].name = kstrdup(ec->hdr.name, GFP_KERNEL);
+-		if (kc[i].name == NULL)
++		if (kc[i].name == NULL) {
++			kfree(se);
+ 			goto err_se;
++		}
+ 		kc[i].private_value = (long)se;
+ 		kc[i].iface = SNDRV_CTL_ELEM_IFACE_MIXER;
+ 		kc[i].access = ec->hdr.access;
+@@ -1442,8 +1444,10 @@ static struct snd_kcontrol_new *soc_tplg_dapm_widget_dbytes_create(
+ 			be->hdr.name, be->hdr.access);
+ 
+ 		kc[i].name = kstrdup(be->hdr.name, GFP_KERNEL);
+-		if (kc[i].name == NULL)
++		if (kc[i].name == NULL) {
++			kfree(sbe);
+ 			goto err;
++		}
+ 		kc[i].private_value = (long)sbe;
+ 		kc[i].iface = SNDRV_CTL_ELEM_IFACE_MIXER;
+ 		kc[i].access = be->hdr.access;
+-- 
+2.24.1
+

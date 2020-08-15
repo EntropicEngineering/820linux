@@ -1,0 +1,27 @@
+From 00d3554d045345be073c5555b801db39823b7c95 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Mon, 14 May 2018 15:40:42 +0530
+Subject: [PATCH 01/10] [6348] Disable mdtp flag, since we don't use verified
+ boot now
+
+Change-Id: I2a5fa586a5dea69a33fa052287f33e0b6f62d1d4
+---
+ project/msm8996.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/project/msm8996.mk b/project/msm8996.mk
+index 0cacee68..7c48ab06 100644
+--- a/project/msm8996.mk
++++ b/project/msm8996.mk
+@@ -87,7 +87,7 @@ ifeq ($(ENABLE_PARTIAL_GOODS_SUPPORT),1)
+ DEFINES += ENABLE_PARTIAL_GOODS_SUPPORT=1
+ endif
+ 
+-ENABLE_MDTP_SUPPORT := 1
++#ENABLE_MDTP_SUPPORT := 1
+ 
+ ifeq ($(ENABLE_MDTP_SUPPORT),1)
+ DEFINES += MDTP_SUPPORT=1
+-- 
+2.24.1
+

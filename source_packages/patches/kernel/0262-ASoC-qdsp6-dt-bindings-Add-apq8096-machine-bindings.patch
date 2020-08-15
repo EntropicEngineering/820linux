@@ -1,0 +1,106 @@
+From 44b60d88f4f173d508f45894c6fd5f5aaafb8e74 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Fri, 18 May 2018 13:56:09 +0100
+Subject: [PATCH 262/334] ASoC: qdsp6: dt-bindings: Add apq8096 machine
+ bindings
+
+Add devicetree bindings documentation file for Qualcomm apq8096 sound card.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-by: Rob Herring <robh@kernel.org>
+Reviewed-by: Banajit Goswami <bgoswami@codeaurora.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+
+Conflicts:
+	Documentation/devicetree/bindings/sound/qcom,apq8096.txt
+---
+ .../bindings/sound/qcom,apq8096.txt           | 43 ++++++++++++++++---
+ 1 file changed, 36 insertions(+), 7 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/sound/qcom,apq8096.txt b/Documentation/devicetree/bindings/sound/qcom,apq8096.txt
+index fddc9f0ce3a5..aa54e49fc8a2 100644
+--- a/Documentation/devicetree/bindings/sound/qcom,apq8096.txt
++++ b/Documentation/devicetree/bindings/sound/qcom,apq8096.txt
+@@ -15,7 +15,40 @@ This binding describes the APQ8096 sound card, which uses qdsp for audio.
+ 		  connection's sink, the second being the connection's
+ 		  source. Valid names could be power supplies, MicBias
+ 		  of codec and the jacks on the board:
++		  Valid names include:
+ 
++		Board Connectors:
++			"Headphone Left"
++			"Headphone Right"
++			"Earphone"
++			"Line Out1"
++			"Line Out2"
++			"Line Out3"
++			"Line Out4"
++			"Analog Mic1"
++			"Analog Mic2"
++			"Analog Mic3"
++			"Analog Mic4"
++			"Analog Mic5"
++			"Analog Mic6"
++			"Digital Mic2"
++			"Digital Mic3"
++
++		Audio pins and MicBias on WCD9335 Codec:
++			"MIC_BIAS1
++			"MIC_BIAS2"
++			"MIC_BIAS3"
++			"MIC_BIAS4"
++			"AMIC1"
++			"AMIC2"
++			"AMIC3"
++			"AMIC4"
++			"AMIC5"
++			"AMIC6"
++			"AMIC6"
++			"DMIC1"
++			"DMIC2"
++			"DMIC3"
+ = dailinks
+ Each subnode of sndcard represents either a dailink, and subnodes of each
+ dailinks would be cpu/codec/platform dais.
+@@ -32,18 +65,18 @@ dailinks would be cpu/codec/platform dais.
+ 	Definition: cpu dai sub-node
+ 
+ - codec:
+-	Usage: required
++	Usage: Optional
+ 	Value type: <subnode>
+ 	Definition: codec dai sub-node
+ 
+ - platform:
+-	Usage: opional
++	Usage: Optional
+ 	Value type: <subnode>
+ 	Definition: platform dai sub-node
+ 
+ - sound-dai:
+ 	Usage: required
+-	Value type: <phandle>
++	Value type: <phandle with arguments>
+ 	Definition: dai phandle/s and port of CPU/CODEC/PLATFORM node.
+ 
+ Example:
+@@ -51,16 +84,12 @@ Example:
+ audio {
+ 	compatible = "qcom,apq8096-sndcard";
+ 	qcom,model = "DB820c";
+-	com,audio-routing = "RX_BIAS", "MCLK";
+ 
+ 	mm1-dai-link {
+ 		link-name = "MultiMedia1";
+ 		cpu {
+ 			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA1>;
+ 		};
+-		platform {
+-			sound-dai = <&q6asmdai>;
+-		};
+ 	};
+ 
+ 	hdmi-dai-link {
+-- 
+2.24.1
+

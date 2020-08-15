@@ -1,0 +1,46 @@
+From a072bc790495702897263bd92cce618bfdedc963 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 11:02:49 +0530
+Subject: [PATCH 279/334] [6558] seq_file: Introduce DEFINE_SHOW_ATTRIBUTE()
+ helper macro
+
+The DEFINE_SHOW_ATTRIBUTE() helper macro would be useful for current
+users, which are many of them, and for new comers to decrease code
+duplication.
+
+https://github.com/torvalds/linux/commit/a08f06bb7a0743a7fc8d571899c93d882468096e#diff-5a58eb4ea7e939f74e8bce20d814413b
+
+Change-Id: Ib887adf0a7ecce7755b02cbbfd9b75737c30b224
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ include/linux/seq_file.h | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/include/linux/seq_file.h b/include/linux/seq_file.h
+index 09c6e28746f9..ab437dd2e3b9 100644
+--- a/include/linux/seq_file.h
++++ b/include/linux/seq_file.h
+@@ -140,6 +140,20 @@ void *__seq_open_private(struct file *, const struct seq_operations *, int);
+ int seq_open_private(struct file *, const struct seq_operations *, int);
+ int seq_release_private(struct inode *, struct file *);
+ 
++#define DEFINE_SHOW_ATTRIBUTE(__name)					\
++static int __name ## _open(struct inode *inode, struct file *file)	\
++{									\
++	return single_open(file, __name ## _show, inode->i_private);	\
++}									\
++									\
++static const struct file_operations __name ## _fops = {			\
++	.owner		= THIS_MODULE,					\
++	.open		= __name ## _open,				\
++	.read		= seq_read,					\
++	.llseek		= seq_lseek,					\
++	.release	= single_release,				\
++}
++
+ static inline struct user_namespace *seq_user_ns(struct seq_file *seq)
+ {
+ #ifdef CONFIG_USER_NS
+-- 
+2.24.1
+

@@ -1,0 +1,47 @@
+From c98e7697f102ab790ad5cdc781d2eeb486cdfb27 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Tue, 8 May 2018 03:19:16 +0000
+Subject: [PATCH 151/334] ASoC: remove .get_regmap
+
+To setup regmap, ALSA SoC has snd_soc_component_init_regmap() and
+.get_regmap. But these are duplicated feature.
+Now, no one is using .get_regmap, let's remove it.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Reviewed-by: Charles Keepax <ckeepax@opensource.wolfsonmicro.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h  | 2 --
+ sound/soc/soc-core.c | 3 ---
+ 2 files changed, 5 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index 7233d3a206b2..309bb70bcb1e 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -947,8 +947,6 @@ struct snd_soc_codec_driver {
+ 	int (*set_jack)(struct snd_soc_codec *codec,
+ 			struct snd_soc_jack *jack,  void *data);
+ 
+-	/* codec IO */
+-	struct regmap *(*get_regmap)(struct device *);
+ 	unsigned int (*read)(struct snd_soc_codec *, unsigned int);
+ 	int (*write)(struct snd_soc_codec *, unsigned int, unsigned int);
+ 
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 96081160fd24..e5af15aa1c28 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -3392,9 +3392,6 @@ int snd_soc_register_codec(struct device *dev,
+ 	codec->component.debugfs_prefix = "codec";
+ #endif
+ 
+-	if (codec_drv->get_regmap)
+-		codec->component.regmap = codec_drv->get_regmap(dev);
+-
+ 	for (i = 0; i < num_dai; i++) {
+ 		convert_endianness_formats(&dai_drv[i].playback);
+ 		convert_endianness_formats(&dai_drv[i].capture);
+-- 
+2.24.1
+

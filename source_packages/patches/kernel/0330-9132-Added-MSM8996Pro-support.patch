@@ -1,0 +1,156 @@
+From 22857832642bc043f96dab3eda1c7ff1860557d6 Mon Sep 17 00:00:00 2001
+From: KNight Weng <kweng@intrinsyc.com>
+Date: Tue, 7 May 2019 18:03:19 +0800
+Subject: [PATCH 330/334] [9132] Added MSM8996Pro support
+
+Change-Id: I9595c692ec81cbde7dceb03fa6474dbba4b7e2a9
+---
+ arch/arm64/boot/dts/qcom/Makefile             |  1 +
+ .../dts/qcom/apq8096pro-openq-micro820.dtsi   | 14 ++++++
+ .../arm64/boot/dts/qcom/apq8096pro-openq.dtsi | 14 ++++++
+ .../apq8096pro-v1.1-pmi8996-microsom-820.dts  | 24 ++++++++++
+ arch/arm64/boot/dts/qcom/msm8996pro.dtsi      | 47 +++++++++++++++++++
+ 5 files changed, 100 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/apq8096pro-openq-micro820.dtsi
+ create mode 100644 arch/arm64/boot/dts/qcom/apq8096pro-openq.dtsi
+ create mode 100644 arch/arm64/boot/dts/qcom/apq8096pro-v1.1-pmi8996-microsom-820.dts
+ create mode 100644 arch/arm64/boot/dts/qcom/msm8996pro.dtsi
+
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+index e4e522be4f61..f263d8e05fbd 100644
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -8,6 +8,7 @@ dtb-$(CONFIG_ARCH_QCOM)	+= msm8994-angler-rev-101.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8996-mtp.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= apq8096-openq-regular820.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= apq8096-openq-micro820.dtb
++dtb-$(CONFIG_ARCH_QCOM) += apq8096pro-v1.1-pmi8996-microsom-820.dtb
+ 
+ always		:= $(dtb-y)
+ subdir-y	:= $(dts-dirs)
+diff --git a/arch/arm64/boot/dts/qcom/apq8096pro-openq-micro820.dtsi b/arch/arm64/boot/dts/qcom/apq8096pro-openq-micro820.dtsi
+new file mode 100644
+index 000000000000..f5fca8a49787
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/apq8096pro-openq-micro820.dtsi
+@@ -0,0 +1,14 @@
++
++/*
++ * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#include "apq8096pro-openq.dtsi"
+diff --git a/arch/arm64/boot/dts/qcom/apq8096pro-openq.dtsi b/arch/arm64/boot/dts/qcom/apq8096pro-openq.dtsi
+new file mode 100644
+index 000000000000..c1c657c0ddf7
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/apq8096pro-openq.dtsi
+@@ -0,0 +1,14 @@
++/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include "apq8096-openq.dtsi"
++#include "msm8996pro.dtsi"
+diff --git a/arch/arm64/boot/dts/qcom/apq8096pro-v1.1-pmi8996-microsom-820.dts b/arch/arm64/boot/dts/qcom/apq8096pro-v1.1-pmi8996-microsom-820.dts
+new file mode 100644
+index 000000000000..ba93676acde0
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/apq8096pro-v1.1-pmi8996-microsom-820.dts
+@@ -0,0 +1,24 @@
++/*
++ * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++/dts-v1/;
++
++#include "apq8096pro-openq-micro820.dtsi"
++
++/ {
++	model = "Intrinsyc Technologies Corp. APQ8096 Pro v1.1 + PMI8996 Open-Q u820 Pro";
++	compatible = "qcom,apq8096-dragonboard", "qcom,msm8996",
++			"qcom,apq8096", "qcom,dragonboard";
++	qcom,msm-id = <305 0x10001>, <312 0x10001>;
++	qcom,board-id = <10 28>;
++};
+diff --git a/arch/arm64/boot/dts/qcom/msm8996pro.dtsi b/arch/arm64/boot/dts/qcom/msm8996pro.dtsi
+new file mode 100644
+index 000000000000..62c9bc971dde
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/msm8996pro.dtsi
+@@ -0,0 +1,47 @@
++/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++/ {
++	model = "Qualcomm Technologies, Inc. MSM8996 Pro";
++};
++
++&cluster0_opp {
++	opp-2188800000 {
++		opp-hz = /bits/ 64 < 2188800000 >;
++		clock-latency-ns = <200000>;
++	};
++};
++
++&cluster1_opp {
++	opp-2246400000 {
++		opp-hz = /bits/ 64 < 2246400000 >;
++		clock-latency-ns = <200000>;
++	};
++	opp-2342400000 {
++		opp-hz = /bits/ 64 < 2342400000 >;
++		clock-latency-ns = <200000>;
++	};
++};
++
++&soc {
++	gpu@b00000 {
++		qcom,gpu-pwrlevels {
++			compatible = "qcom,gpu-pwrlevels";
++			qcom,gpu-pwrlevel@0 {
++				qcom,gpu-freq = <624000000>;
++			};
++			qcom,gpu-pwrlevel@1 {
++				qcom,gpu-freq = <27000000>;
++			};
++		};
++	};
++};
+-- 
+2.24.1
+

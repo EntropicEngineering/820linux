@@ -1,0 +1,49 @@
+From eaa4360180d8bd4566b71e4f72f2c2b8dee7e7ac Mon Sep 17 00:00:00 2001
+From: Fabio Estevam <fabio.estevam@nxp.com>
+Date: Wed, 21 Feb 2018 14:57:33 -0300
+Subject: [PATCH 122/334] ASoC: soc-generic-dmaengine-pcm: Add a DMA
+ debugfs_prefix entry
+
+After the conversion from platform to component the following warnings
+are seen:
+
+fsl-ssi-dai 2028000.ssi: ASoC: Failed to create component debugfs
+directory
+fsl-spdif-dai 2004000.spdif: ASoC: Failed to create component debugfs
+directory
+
+As explained by Mark Brown:
+
+"It's a legit warning - we shouldn't really be creating two components
+for the same device.  However this is a bit of a corner case as it's the
+dmaengine platform driver which is kind of a virtual device, it's not
+really the device that we use with DMA that's being represented but
+rather the link between that and the DMA controller."
+
+Disambiguate the DMA component name by adding a "dma" debugfs_prefix
+entry.
+
+Suggested-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Fabio Estevam <fabio.estevam@nxp.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-generic-dmaengine-pcm.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/sound/soc/soc-generic-dmaengine-pcm.c b/sound/soc/soc-generic-dmaengine-pcm.c
+index c07d5c79ca91..768247fd92c5 100644
+--- a/sound/soc/soc-generic-dmaengine-pcm.c
++++ b/sound/soc/soc-generic-dmaengine-pcm.c
+@@ -442,6 +442,9 @@ int snd_dmaengine_pcm_register(struct device *dev,
+ 	if (!pcm)
+ 		return -ENOMEM;
+ 
++#ifdef CONFIG_DEBUG_FS
++	pcm->component.debugfs_prefix = "dma";
++#endif
+ 	pcm->config = config;
+ 	pcm->flags = flags;
+ 
+-- 
+2.24.1
+

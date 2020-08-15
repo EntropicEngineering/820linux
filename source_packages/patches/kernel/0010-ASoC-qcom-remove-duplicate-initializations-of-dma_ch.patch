@@ -1,0 +1,46 @@
+From 17ac362e59756a113b9eb0d69aba209e3b8ce1f2 Mon Sep 17 00:00:00 2001
+From: Colin Ian King <colin.king@canonical.com>
+Date: Mon, 18 Sep 2017 10:26:03 +0100
+Subject: [PATCH 010/334] ASoC: qcom: remove duplicate initializations of
+ dma_ch and v
+
+dma_ch is being initialized to zero and then immediately afterwards
+being updated again, so the first initialization is redundant and
+can be remove.
+
+Likewise, the pointer v is being initialized twice, so remove the second
+duplicate initialization.
+
+Cleans up two clang build warnings:
+warning: Value stored to 'dma_ch' is never read
+warning: Value stored to 'v' during its initialization is never read
+
+Signed-off-by: Colin Ian King <colin.king@canonical.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/qcom/lpass-platform.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/sound/soc/qcom/lpass-platform.c b/sound/soc/qcom/lpass-platform.c
+index e1945e1772cd..caf71aab8196 100644
+--- a/sound/soc/qcom/lpass-platform.c
++++ b/sound/soc/qcom/lpass-platform.c
+@@ -74,7 +74,6 @@ static int lpass_platform_pcmops_open(struct snd_pcm_substream *substream)
+ 	data->i2s_port = cpu_dai->driver->id;
+ 	runtime->private_data = data;
+ 
+-	dma_ch = 0;
+ 	if (v->alloc_dma_channel)
+ 		dma_ch = v->alloc_dma_channel(drvdata, dir);
+ 	else
+@@ -122,7 +121,6 @@ static int lpass_platform_pcmops_close(struct snd_pcm_substream *substream)
+ 	struct lpass_pcm_data *data;
+ 
+ 	data = runtime->private_data;
+-	v = drvdata->variant;
+ 	drvdata->substream[data->dma_ch] = NULL;
+ 	if (v->free_dma_channel)
+ 		v->free_dma_channel(drvdata, data->dma_ch);
+-- 
+2.24.1
+

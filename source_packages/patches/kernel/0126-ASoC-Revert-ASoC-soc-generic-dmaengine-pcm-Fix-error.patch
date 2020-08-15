@@ -1,0 +1,47 @@
+From 9ebaa04dffb4e9d0d91377b1239c41b7a517b017 Mon Sep 17 00:00:00 2001
+From: Fabio Estevam <fabio.estevam@nxp.com>
+Date: Mon, 26 Feb 2018 15:55:25 -0300
+Subject: [PATCH 126/334] ASoC: Revert "ASoC: soc-generic-dmaengine-pcm: Fix
+ error handling"
+
+This reverts commit f91b1e73ccde71d4bc69ae10d475196df38844ab.
+
+As explained by Lars-Peter Clausen:
+
+"This creates a resource leak. dmaengine_pcm_request_chan_of() requests
+bothtransmit and receive channels. It might return with an error if one
+of them fails, but the other one succeeded. In this case we need to call
+dmaengine_pcm_release_chan() to free the requested channel"
+
+So revert the commit.
+
+Signed-off-by: Fabio Estevam <fabio.estevam@nxp.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-generic-dmaengine-pcm.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-generic-dmaengine-pcm.c b/sound/soc/soc-generic-dmaengine-pcm.c
+index 567fbdfd1ca9..56a541b9ff9e 100644
+--- a/sound/soc/soc-generic-dmaengine-pcm.c
++++ b/sound/soc/soc-generic-dmaengine-pcm.c
+@@ -504,7 +504,7 @@ int snd_dmaengine_pcm_register(struct device *dev,
+ 
+ 	ret = dmaengine_pcm_request_chan_of(pcm, dev, config);
+ 	if (ret)
+-		goto err_free_pcm;
++		goto err_free_dma;
+ 
+ 	if (config && config->process)
+ 		ret = snd_soc_add_component(dev, &pcm->component,
+@@ -520,7 +520,6 @@ int snd_dmaengine_pcm_register(struct device *dev,
+ 
+ err_free_dma:
+ 	dmaengine_pcm_release_chan(pcm);
+-err_free_pcm:
+ 	kfree(pcm);
+ 	return ret;
+ }
+-- 
+2.24.1
+

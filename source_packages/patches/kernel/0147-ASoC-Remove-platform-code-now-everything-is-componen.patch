@@ -1,0 +1,1466 @@
+From ac8bd14845ee159907f9f8c45716d7776133e5cf Mon Sep 17 00:00:00 2001
+From: Charles Keepax <ckeepax@opensource.cirrus.com>
+Date: Tue, 24 Apr 2018 16:39:02 +0100
+Subject: [PATCH 147/334] ASoC: Remove platform code now everything is
+ componentised
+
+As all drivers have been moved over to the new generic component
+code remove the now unused platform specific code.
+
+Signed-off-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+Acked-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h      | 103 +-----------------
+ sound/soc/soc-compress.c | 227 ++-------------------------------------
+ sound/soc/soc-core.c     | 214 ------------------------------------
+ sound/soc/soc-devres.c   |  35 ------
+ sound/soc/soc-io.c       |  21 ----
+ sound/soc/soc-pcm.c      | 119 +-------------------
+ 6 files changed, 12 insertions(+), 707 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index 38b028fb1ed3..662f8db93cd3 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -401,9 +401,7 @@ struct snd_soc_ops;
+ struct snd_soc_pcm_runtime;
+ struct snd_soc_dai;
+ struct snd_soc_dai_driver;
+-struct snd_soc_platform;
+ struct snd_soc_dai_link;
+-struct snd_soc_platform_driver;
+ struct snd_soc_codec;
+ struct snd_soc_codec_driver;
+ struct snd_soc_component;
+@@ -455,15 +453,6 @@ static inline int snd_soc_resume(struct device *dev)
+ }
+ #endif
+ int snd_soc_poweroff(struct device *dev);
+-int snd_soc_register_platform(struct device *dev,
+-		const struct snd_soc_platform_driver *platform_drv);
+-int devm_snd_soc_register_platform(struct device *dev,
+-		const struct snd_soc_platform_driver *platform_drv);
+-void snd_soc_unregister_platform(struct device *dev);
+-int snd_soc_add_platform(struct device *dev, struct snd_soc_platform *platform,
+-		const struct snd_soc_platform_driver *platform_drv);
+-void snd_soc_remove_platform(struct snd_soc_platform *platform);
+-struct snd_soc_platform *snd_soc_lookup_platform(struct device *dev);
+ int snd_soc_register_codec(struct device *dev,
+ 		const struct snd_soc_codec_driver *codec_drv,
+ 		struct snd_soc_dai_driver *dai_drv, int num_dai);
+@@ -485,10 +474,6 @@ struct snd_soc_component *snd_soc_lookup_component(struct device *dev,
+ int snd_soc_cache_init(struct snd_soc_codec *codec);
+ int snd_soc_cache_exit(struct snd_soc_codec *codec);
+ 
+-int snd_soc_platform_read(struct snd_soc_platform *platform,
+-					unsigned int reg);
+-int snd_soc_platform_write(struct snd_soc_platform *platform,
+-					unsigned int reg, unsigned int val);
+ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num);
+ #ifdef CONFIG_SND_SOC_COMPRESS
+ int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num);
+@@ -628,8 +613,6 @@ int snd_soc_add_component_controls(struct snd_soc_component *component,
+ 	const struct snd_kcontrol_new *controls, unsigned int num_controls);
+ int snd_soc_add_codec_controls(struct snd_soc_codec *codec,
+ 	const struct snd_kcontrol_new *controls, unsigned int num_controls);
+-int snd_soc_add_platform_controls(struct snd_soc_platform *platform,
+-	const struct snd_kcontrol_new *controls, unsigned int num_controls);
+ int snd_soc_add_card_controls(struct snd_soc_card *soc_card,
+ 	const struct snd_kcontrol_new *controls, int num_controls);
+ int snd_soc_add_dai_controls(struct snd_soc_dai *dai,
+@@ -997,39 +980,12 @@ struct snd_soc_codec_driver {
+ 	bool ignore_pmdown_time;  /* Doesn't benefit from pmdown delay */
+ };
+ 
+-/* SoC platform interface */
+-struct snd_soc_platform_driver {
+-
+-	int (*probe)(struct snd_soc_platform *);
+-	int (*remove)(struct snd_soc_platform *);
+-	struct snd_soc_component_driver component_driver;
+-
+-	/* pcm creation and destruction */
+-	int (*pcm_new)(struct snd_soc_pcm_runtime *);
+-	void (*pcm_free)(struct snd_pcm *);
+-
+-	/* platform stream pcm ops */
+-	const struct snd_pcm_ops *ops;
+-
+-	/* platform stream compress ops */
+-	const struct snd_compr_ops *compr_ops;
+-};
+-
+ struct snd_soc_dai_link_component {
+ 	const char *name;
+ 	struct device_node *of_node;
+ 	const char *dai_name;
+ };
+ 
+-struct snd_soc_platform {
+-	struct device *dev;
+-	const struct snd_soc_platform_driver *driver;
+-
+-	struct list_head list;
+-
+-	struct snd_soc_component component;
+-};
+-
+ struct snd_soc_dai_link {
+ 	/* config - must be set by machine driver */
+ 	const char *name;			/* Codec name */
+@@ -1278,7 +1234,6 @@ struct snd_soc_pcm_runtime {
+ 	struct snd_pcm *pcm;
+ 	struct snd_compr *compr;
+ 	struct snd_soc_codec *codec;
+-	struct snd_soc_platform *platform; /* will be removed */
+ 	struct snd_soc_dai *codec_dai;
+ 	struct snd_soc_dai *cpu_dai;
+ 
+@@ -1359,19 +1314,6 @@ static inline struct snd_soc_codec *snd_soc_component_to_codec(
+ 	return container_of(component, struct snd_soc_codec, component);
+ }
+ 
+-/**
+- * snd_soc_component_to_platform() - Casts a component to the platform it is embedded in
+- * @component: The component to cast to a platform
+- *
+- * This function must only be used on components that are known to be platforms.
+- * Otherwise the behavior is undefined.
+- */
+-static inline struct snd_soc_platform *snd_soc_component_to_platform(
+-	struct snd_soc_component *component)
+-{
+-	return container_of(component, struct snd_soc_platform, component);
+-}
+-
+ /**
+  * snd_soc_dapm_to_component() - Casts a DAPM context to the component it is
+  *  embedded in
+@@ -1400,20 +1342,6 @@ static inline struct snd_soc_codec *snd_soc_dapm_to_codec(
+ 	return snd_soc_component_to_codec(snd_soc_dapm_to_component(dapm));
+ }
+ 
+-/**
+- * snd_soc_dapm_to_platform() - Casts a DAPM context to the platform it is
+- *  embedded in
+- * @dapm: The DAPM context to cast to the platform.
+- *
+- * This function must only be used on DAPM contexts that are known to be part of
+- * a platform (e.g. in a platform driver). Otherwise the behavior is undefined.
+- */
+-static inline struct snd_soc_platform *snd_soc_dapm_to_platform(
+-	struct snd_soc_dapm_context *dapm)
+-{
+-	return snd_soc_component_to_platform(snd_soc_dapm_to_component(dapm));
+-}
+-
+ /**
+  * snd_soc_component_get_dapm() - Returns the DAPM context associated with a
+  *  component
+@@ -1602,17 +1530,6 @@ static inline void *snd_soc_codec_get_drvdata(struct snd_soc_codec *codec)
+ 	return snd_soc_component_get_drvdata(&codec->component);
+ }
+ 
+-static inline void snd_soc_platform_set_drvdata(struct snd_soc_platform *platform,
+-		void *data)
+-{
+-	snd_soc_component_set_drvdata(&platform->component, data);
+-}
+-
+-static inline void *snd_soc_platform_get_drvdata(struct snd_soc_platform *platform)
+-{
+-	return snd_soc_component_get_drvdata(&platform->component);
+-}
+-
+ static inline void snd_soc_initialize_card_lists(struct snd_soc_card *card)
+ {
+ 	INIT_LIST_HEAD(&card->widgets);
+@@ -1675,9 +1592,9 @@ static inline bool snd_soc_codec_is_active(struct snd_soc_codec *codec)
+  * @kcontrol: The control for which to get the component
+  *
+  * Note: This function will work correctly if the control has been registered
+- * for a component. Either with snd_soc_add_codec_controls() or
+- * snd_soc_add_platform_controls() or via  table based setup for either a
+- * CODEC, a platform or component driver. Otherwise the behavior is undefined.
++ * for a component. With snd_soc_add_codec_controls() or via table based
++ * setup for either a CODEC or component driver. Otherwise the behavior is
++ * undefined.
+  */
+ static inline struct snd_soc_component *snd_soc_kcontrol_component(
+ 	struct snd_kcontrol *kcontrol)
+@@ -1699,20 +1616,6 @@ static inline struct snd_soc_codec *snd_soc_kcontrol_codec(
+ 	return snd_soc_component_to_codec(snd_soc_kcontrol_component(kcontrol));
+ }
+ 
+-/**
+- * snd_soc_kcontrol_platform() - Returns the platform that registered the control
+- * @kcontrol: The control for which to get the platform
+- *
+- * Note: This function will only work correctly if the control has been
+- * registered with snd_soc_add_platform_controls() or via table based setup of
+- * a snd_soc_platform_driver. Otherwise the behavior is undefined.
+- */
+-static inline struct snd_soc_platform *snd_soc_kcontrol_platform(
+-	struct snd_kcontrol *kcontrol)
+-{
+-	return snd_soc_component_to_platform(snd_soc_kcontrol_component(kcontrol));
+-}
+-
+ int snd_soc_util_init(void);
+ void snd_soc_util_exit(void);
+ 
+diff --git a/sound/soc/soc-compress.c b/sound/soc/soc-compress.c
+index 948505f74229..abc00c6cc2d7 100644
+--- a/sound/soc/soc-compress.c
++++ b/sound/soc/soc-compress.c
+@@ -29,7 +29,6 @@
+ static int soc_compr_open(struct snd_compr_stream *cstream)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -47,23 +46,9 @@ static int soc_compr_open(struct snd_compr_stream *cstream)
+ 		}
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->open) {
+-		ret = platform->driver->compr_ops->open(cstream);
+-		if (ret < 0) {
+-			dev_err(platform->dev,
+-				"Compress ASoC: can't open platform %s: %d\n",
+-				platform->component.name, ret);
+-			goto plat_err;
+-		}
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->open)
+ 			continue;
+@@ -101,10 +86,6 @@ static int soc_compr_open(struct snd_compr_stream *cstream)
+ 		if (err_comp == component)
+ 			break;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (err_comp == &platform->component))
+-			continue;
+-
+ 		if (!err_comp->driver->compr_ops ||
+ 		    !err_comp->driver->compr_ops->free)
+ 			continue;
+@@ -112,9 +93,6 @@ static int soc_compr_open(struct snd_compr_stream *cstream)
+ 		err_comp->driver->compr_ops->free(cstream);
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->free)
+-		platform->driver->compr_ops->free(cstream);
+-plat_err:
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->shutdown)
+ 		cpu_dai->driver->cops->shutdown(cstream, cpu_dai);
+ out:
+@@ -127,7 +105,6 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
+ 	struct snd_soc_pcm_runtime *fe = cstream->private_data;
+ 	struct snd_pcm_substream *fe_substream =
+ 		 fe->pcm->streams[cstream->direction].substream;
+-	struct snd_soc_platform *platform = fe->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
+@@ -153,23 +130,9 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
+ 		}
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->open) {
+-		ret = platform->driver->compr_ops->open(cstream);
+-		if (ret < 0) {
+-			dev_err(platform->dev,
+-				"Compress ASoC: can't open platform %s: %d\n",
+-				platform->component.name, ret);
+-			goto plat_err;
+-		}
+-	}
+-
+ 	for_each_rtdcom(fe, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->open)
+ 			continue;
+@@ -242,10 +205,6 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
+ 		if (err_comp == component)
+ 			break;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (err_comp == &platform->component))
+-			continue;
+-
+ 		if (!err_comp->driver->compr_ops ||
+ 		    !err_comp->driver->compr_ops->free)
+ 			continue;
+@@ -253,9 +212,6 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
+ 		err_comp->driver->compr_ops->free(cstream);
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->free)
+-		platform->driver->compr_ops->free(cstream);
+-plat_err:
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->shutdown)
+ 		cpu_dai->driver->cops->shutdown(cstream, cpu_dai);
+ out:
+@@ -296,7 +252,6 @@ static void close_delayed_work(struct work_struct *work)
+ static int soc_compr_free(struct snd_compr_stream *cstream)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -326,10 +281,6 @@ static int soc_compr_free(struct snd_compr_stream *cstream)
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->free)
+ 			continue;
+@@ -337,9 +288,6 @@ static int soc_compr_free(struct snd_compr_stream *cstream)
+ 		component->driver->compr_ops->free(cstream);
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->free)
+-		platform->driver->compr_ops->free(cstream);
+-
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->shutdown)
+ 		cpu_dai->driver->cops->shutdown(cstream, cpu_dai);
+ 
+@@ -368,7 +316,6 @@ static int soc_compr_free(struct snd_compr_stream *cstream)
+ static int soc_compr_free_fe(struct snd_compr_stream *cstream)
+ {
+ 	struct snd_soc_pcm_runtime *fe = cstream->private_data;
+-	struct snd_soc_platform *platform = fe->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
+@@ -408,16 +355,9 @@ static int soc_compr_free_fe(struct snd_compr_stream *cstream)
+ 	if (fe->dai_link->compr_ops && fe->dai_link->compr_ops->shutdown)
+ 		fe->dai_link->compr_ops->shutdown(cstream);
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->free)
+-		platform->driver->compr_ops->free(cstream);
+-
+ 	for_each_rtdcom(fe, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->free)
+ 			continue;
+@@ -436,7 +376,6 @@ static int soc_compr_trigger(struct snd_compr_stream *cstream, int cmd)
+ {
+ 
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+@@ -445,19 +384,9 @@ static int soc_compr_trigger(struct snd_compr_stream *cstream, int cmd)
+ 
+ 	mutex_lock_nested(&rtd->pcm_mutex, rtd->pcm_subclass);
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->trigger) {
+-		ret = platform->driver->compr_ops->trigger(cstream, cmd);
+-		if (ret < 0)
+-			goto out;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->trigger)
+ 			continue;
+@@ -489,7 +418,6 @@ static int soc_compr_trigger(struct snd_compr_stream *cstream, int cmd)
+ static int soc_compr_trigger_fe(struct snd_compr_stream *cstream, int cmd)
+ {
+ 	struct snd_soc_pcm_runtime *fe = cstream->private_data;
+-	struct snd_soc_platform *platform = fe->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
+@@ -498,19 +426,9 @@ static int soc_compr_trigger_fe(struct snd_compr_stream *cstream, int cmd)
+ 	if (cmd == SND_COMPR_TRIGGER_PARTIAL_DRAIN ||
+ 		cmd == SND_COMPR_TRIGGER_DRAIN) {
+ 
+-		if (platform &&
+-		    platform->driver->compr_ops &&
+-		    platform->driver->compr_ops->trigger)
+-			return platform->driver->compr_ops->trigger(cstream,
+-								    cmd);
+-
+ 		for_each_rtdcom(fe, rtdcom) {
+ 			component = rtdcom->component;
+ 
+-			/* ignore duplication for now */
+-			if (platform && (component == &platform->component))
+-				continue;
+-
+ 			if (!component->driver->compr_ops ||
+ 			    !component->driver->compr_ops->trigger)
+ 				continue;
+@@ -536,19 +454,9 @@ static int soc_compr_trigger_fe(struct snd_compr_stream *cstream, int cmd)
+ 			goto out;
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->trigger) {
+-		ret = platform->driver->compr_ops->trigger(cstream, cmd);
+-		if (ret < 0)
+-			goto out;
+-	}
+-
+ 	for_each_rtdcom(fe, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->trigger)
+ 			continue;
+@@ -589,7 +497,6 @@ static int soc_compr_set_params(struct snd_compr_stream *cstream,
+ 					struct snd_compr_params *params)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -597,11 +504,12 @@ static int soc_compr_set_params(struct snd_compr_stream *cstream,
+ 
+ 	mutex_lock_nested(&rtd->pcm_mutex, rtd->pcm_subclass);
+ 
+-	/* first we call set_params for the platform driver
+-	 * this should configure the soc side
+-	 * if the machine has compressed ops then we call that as well
+-	 * expectation is that platform and machine will configure everything
+-	 * for this compress path, like configuring pcm port for codec
++	/*
++	 * First we call set_params for the CPU DAI, then the component
++	 * driver this should configure the SoC side. If the machine has
++	 * compressed ops then we call that as well. The expectation is
++	 * that these callbacks will configure everything for this compress
++	 * path, like configuring a PCM port for a CODEC.
+ 	 */
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->set_params) {
+ 		ret = cpu_dai->driver->cops->set_params(cstream, params, cpu_dai);
+@@ -609,19 +517,9 @@ static int soc_compr_set_params(struct snd_compr_stream *cstream,
+ 			goto err;
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->set_params) {
+-		ret = platform->driver->compr_ops->set_params(cstream, params);
+-		if (ret < 0)
+-			goto err;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->set_params)
+ 			continue;
+@@ -665,7 +563,6 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
+ 	struct snd_soc_pcm_runtime *fe = cstream->private_data;
+ 	struct snd_pcm_substream *fe_substream =
+ 		 fe->pcm->streams[cstream->direction].substream;
+-	struct snd_soc_platform *platform = fe->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
+@@ -684,19 +581,9 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
+ 			goto out;
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->set_params) {
+-		ret = platform->driver->compr_ops->set_params(cstream, params);
+-		if (ret < 0)
+-			goto out;
+-	}
+-
+ 	for_each_rtdcom(fe, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->set_params)
+ 			continue;
+@@ -745,7 +632,6 @@ static int soc_compr_get_params(struct snd_compr_stream *cstream,
+ 					struct snd_codec *params)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -759,19 +645,9 @@ static int soc_compr_get_params(struct snd_compr_stream *cstream,
+ 			goto err;
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->get_params) {
+-		ret = platform->driver->compr_ops->get_params(cstream, params);
+-		if (ret < 0)
+-			goto err;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->get_params)
+ 			continue;
+@@ -790,26 +666,15 @@ static int soc_compr_get_caps(struct snd_compr_stream *cstream,
+ 				struct snd_compr_caps *caps)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	int ret = 0, __ret;
+ 
+ 	mutex_lock_nested(&rtd->pcm_mutex, rtd->pcm_subclass);
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->get_caps) {
+-		ret = platform->driver->compr_ops->get_caps(cstream, caps);
+-		if (ret < 0)
+-			goto err;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->get_caps)
+ 			continue;
+@@ -819,7 +684,6 @@ static int soc_compr_get_caps(struct snd_compr_stream *cstream,
+ 			ret = __ret;
+ 	}
+ 
+-err:
+ 	mutex_unlock(&rtd->pcm_mutex);
+ 	return ret;
+ }
+@@ -828,26 +692,15 @@ static int soc_compr_get_codec_caps(struct snd_compr_stream *cstream,
+ 				struct snd_compr_codec_caps *codec)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	int ret = 0, __ret;
+ 
+ 	mutex_lock_nested(&rtd->pcm_mutex, rtd->pcm_subclass);
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->get_codec_caps) {
+-		ret = platform->driver->compr_ops->get_codec_caps(cstream, codec);
+-		if (ret < 0)
+-			goto err;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->get_codec_caps)
+ 			continue;
+@@ -857,7 +710,6 @@ static int soc_compr_get_codec_caps(struct snd_compr_stream *cstream,
+ 			ret = __ret;
+ 	}
+ 
+-err:
+ 	mutex_unlock(&rtd->pcm_mutex);
+ 	return ret;
+ }
+@@ -865,7 +717,6 @@ static int soc_compr_get_codec_caps(struct snd_compr_stream *cstream,
+ static int soc_compr_ack(struct snd_compr_stream *cstream, size_t bytes)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -879,19 +730,9 @@ static int soc_compr_ack(struct snd_compr_stream *cstream, size_t bytes)
+ 			goto err;
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->ack) {
+-		ret = platform->driver->compr_ops->ack(cstream, bytes);
+-		if (ret < 0)
+-			goto err;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->ack)
+ 			continue;
+@@ -910,7 +751,6 @@ static int soc_compr_pointer(struct snd_compr_stream *cstream,
+ 			struct snd_compr_tstamp *tstamp)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	int ret = 0, __ret;
+@@ -921,19 +761,9 @@ static int soc_compr_pointer(struct snd_compr_stream *cstream,
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->pointer)
+ 		cpu_dai->driver->cops->pointer(cstream, tstamp, cpu_dai);
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->pointer) {
+-		ret = platform->driver->compr_ops->pointer(cstream, tstamp);
+-		if (ret < 0)
+-			goto err;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->pointer)
+ 			continue;
+@@ -943,7 +773,6 @@ static int soc_compr_pointer(struct snd_compr_stream *cstream,
+ 			ret = __ret;
+ 	}
+ 
+-err:
+ 	mutex_unlock(&rtd->pcm_mutex);
+ 	return ret;
+ }
+@@ -952,26 +781,15 @@ static int soc_compr_copy(struct snd_compr_stream *cstream,
+ 			  char __user *buf, size_t count)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	int ret = 0;
+ 
+ 	mutex_lock_nested(&rtd->pcm_mutex, rtd->pcm_subclass);
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->copy) {
+-		ret = platform->driver->compr_ops->copy(cstream, buf, count);
+-		if (ret < 0)
+-			goto err;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->copy)
+ 			continue;
+@@ -980,7 +798,6 @@ static int soc_compr_copy(struct snd_compr_stream *cstream,
+ 		break;
+ 	}
+ 
+-err:
+ 	mutex_unlock(&rtd->pcm_mutex);
+ 	return ret;
+ }
+@@ -989,7 +806,6 @@ static int soc_compr_set_metadata(struct snd_compr_stream *cstream,
+ 				struct snd_compr_metadata *metadata)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -1001,19 +817,9 @@ static int soc_compr_set_metadata(struct snd_compr_stream *cstream,
+ 			return ret;
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->set_metadata) {
+-		ret = platform->driver->compr_ops->set_metadata(cstream, metadata);
+-		if (ret < 0)
+-			return ret;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->set_metadata)
+ 			continue;
+@@ -1030,7 +836,6 @@ static int soc_compr_get_metadata(struct snd_compr_stream *cstream,
+ 				struct snd_compr_metadata *metadata)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -1042,19 +847,9 @@ static int soc_compr_get_metadata(struct snd_compr_stream *cstream,
+ 			return ret;
+ 	}
+ 
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->get_metadata) {
+-		ret = platform->driver->compr_ops->get_metadata(cstream, metadata);
+-		if (ret < 0)
+-			return ret;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->get_metadata)
+ 			continue;
+@@ -1107,7 +902,6 @@ static struct snd_compr_ops soc_compr_dyn_ops = {
+  */
+ int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
+ {
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+@@ -1188,18 +982,9 @@ int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
+ 		memcpy(compr->ops, &soc_compr_ops, sizeof(soc_compr_ops));
+ 	}
+ 
+-
+-	/* Add copy callback for not memory mapped DSPs */
+-	if (platform && platform->driver->compr_ops && platform->driver->compr_ops->copy)
+-		compr->ops->copy = soc_compr_copy;
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->compr_ops ||
+ 		    !component->driver->compr_ops->copy)
+ 			continue;
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 9f9e9110c31c..0c300b9532b8 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -56,7 +56,6 @@ EXPORT_SYMBOL_GPL(snd_soc_debugfs_root);
+ #endif
+ 
+ static DEFINE_MUTEX(client_mutex);
+-static LIST_HEAD(platform_list);
+ static LIST_HEAD(codec_list);
+ static LIST_HEAD(component_list);
+ 
+@@ -381,21 +380,6 @@ static int dai_list_show(struct seq_file *m, void *v)
+ }
+ DEFINE_SHOW_ATTRIBUTE(dai_list);
+ 
+-static int platform_list_show(struct seq_file *m, void *v)
+-{
+-	struct snd_soc_platform *platform;
+-
+-	mutex_lock(&client_mutex);
+-
+-	list_for_each_entry(platform, &platform_list, list)
+-		seq_printf(m, "%s\n", platform->component.name);
+-
+-	mutex_unlock(&client_mutex);
+-
+-	return 0;
+-}
+-DEFINE_SHOW_ATTRIBUTE(platform_list);
+-
+ static void soc_init_card_debugfs(struct snd_soc_card *card)
+ {
+ 	if (!snd_soc_debugfs_root)
+@@ -438,10 +422,6 @@ static void snd_soc_debugfs_init(void)
+ 	if (!debugfs_create_file("dais", 0444, snd_soc_debugfs_root, NULL,
+ 				 &dai_list_fops))
+ 		pr_warn("ASoC: Failed to create DAI list debugfs file\n");
+-
+-	if (!debugfs_create_file("platforms", 0444, snd_soc_debugfs_root, NULL,
+-				 &platform_list_fops))
+-		pr_warn("ASoC: Failed to create platform list debugfs file\n");
+ }
+ 
+ static void snd_soc_debugfs_exit(void)
+@@ -1045,7 +1025,6 @@ static int soc_bind_dai_link(struct snd_soc_card *card,
+ 	struct snd_soc_dai_link_component cpu_dai_component;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_dai **codec_dais;
+-	struct snd_soc_platform *platform;
+ 	struct device_node *platform_of_node;
+ 	const char *platform_name;
+ 	int i;
+@@ -1113,23 +1092,6 @@ static int soc_bind_dai_link(struct snd_soc_card *card,
+ 		snd_soc_rtdcom_add(rtd, component);
+ 	}
+ 
+-	/* find one from the set of registered platforms */
+-	list_for_each_entry(platform, &platform_list, list) {
+-		platform_of_node = platform->dev->of_node;
+-		if (!platform_of_node && platform->dev->parent->of_node)
+-			platform_of_node = platform->dev->parent->of_node;
+-
+-		if (dai_link->platform_of_node) {
+-			if (platform_of_node != dai_link->platform_of_node)
+-				continue;
+-		} else {
+-			if (strcmp(platform->component.name, platform_name))
+-				continue;
+-		}
+-
+-		rtd->platform = platform;
+-	}
+-
+ 	soc_add_pcm_runtime(card, rtd);
+ 	return 0;
+ 
+@@ -2512,24 +2474,6 @@ int snd_soc_add_codec_controls(struct snd_soc_codec *codec,
+ }
+ EXPORT_SYMBOL_GPL(snd_soc_add_codec_controls);
+ 
+-/**
+- * snd_soc_add_platform_controls - add an array of controls to a platform.
+- * Convenience function to add a list of controls.
+- *
+- * @platform: platform to add controls to
+- * @controls: array of controls to add
+- * @num_controls: number of elements in the array
+- *
+- * Return 0 for success, else error.
+- */
+-int snd_soc_add_platform_controls(struct snd_soc_platform *platform,
+-	const struct snd_kcontrol_new *controls, unsigned int num_controls)
+-{
+-	return snd_soc_add_component_controls(&platform->component, controls,
+-		num_controls);
+-}
+-EXPORT_SYMBOL_GPL(snd_soc_add_platform_controls);
+-
+ /**
+  * snd_soc_add_card_controls - add an array of controls to a SoC card.
+  * Convenience function to add a list of controls.
+@@ -3503,164 +3447,6 @@ struct snd_soc_component *snd_soc_lookup_component(struct device *dev,
+ }
+ EXPORT_SYMBOL_GPL(snd_soc_lookup_component);
+ 
+-static int snd_soc_platform_drv_probe(struct snd_soc_component *component)
+-{
+-	struct snd_soc_platform *platform = snd_soc_component_to_platform(component);
+-
+-	return platform->driver->probe(platform);
+-}
+-
+-static void snd_soc_platform_drv_remove(struct snd_soc_component *component)
+-{
+-	struct snd_soc_platform *platform = snd_soc_component_to_platform(component);
+-
+-	platform->driver->remove(platform);
+-}
+-
+-static int snd_soc_platform_drv_pcm_new(struct snd_soc_component *component,
+-					struct snd_soc_pcm_runtime *rtd)
+-{
+-	struct snd_soc_platform *platform = snd_soc_component_to_platform(component);
+-
+-	if (platform->driver->pcm_new)
+-		return platform->driver->pcm_new(rtd);
+-
+-	return 0;
+-}
+-
+-static void snd_soc_platform_drv_pcm_free(struct snd_soc_component *component,
+-					  struct snd_pcm *pcm)
+-{
+-	struct snd_soc_platform *platform = snd_soc_component_to_platform(component);
+-
+-	if (platform->driver->pcm_free)
+-		platform->driver->pcm_free(pcm);
+-}
+-
+-/**
+- * snd_soc_add_platform - Add a platform to the ASoC core
+- * @dev: The parent device for the platform
+- * @platform: The platform to add
+- * @platform_drv: The driver for the platform
+- */
+-int snd_soc_add_platform(struct device *dev, struct snd_soc_platform *platform,
+-		const struct snd_soc_platform_driver *platform_drv)
+-{
+-	int ret;
+-
+-	ret = snd_soc_component_initialize(&platform->component,
+-			&platform_drv->component_driver, dev);
+-	if (ret)
+-		return ret;
+-
+-	platform->dev = dev;
+-	platform->driver = platform_drv;
+-
+-	if (platform_drv->probe)
+-		platform->component.probe = snd_soc_platform_drv_probe;
+-	if (platform_drv->remove)
+-		platform->component.remove = snd_soc_platform_drv_remove;
+-	if (platform_drv->pcm_new)
+-		platform->component.pcm_new = snd_soc_platform_drv_pcm_new;
+-	if (platform_drv->pcm_free)
+-		platform->component.pcm_free = snd_soc_platform_drv_pcm_free;
+-
+-#ifdef CONFIG_DEBUG_FS
+-	platform->component.debugfs_prefix = "platform";
+-#endif
+-
+-	mutex_lock(&client_mutex);
+-	snd_soc_component_add_unlocked(&platform->component);
+-	list_add(&platform->list, &platform_list);
+-	mutex_unlock(&client_mutex);
+-
+-	dev_dbg(dev, "ASoC: Registered platform '%s'\n",
+-		platform->component.name);
+-
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(snd_soc_add_platform);
+-
+-/**
+- * snd_soc_register_platform - Register a platform with the ASoC core
+- *
+- * @dev: The device for the platform
+- * @platform_drv: The driver for the platform
+- */
+-int snd_soc_register_platform(struct device *dev,
+-		const struct snd_soc_platform_driver *platform_drv)
+-{
+-	struct snd_soc_platform *platform;
+-	int ret;
+-
+-	dev_dbg(dev, "ASoC: platform register %s\n", dev_name(dev));
+-
+-	platform = kzalloc(sizeof(struct snd_soc_platform), GFP_KERNEL);
+-	if (platform == NULL)
+-		return -ENOMEM;
+-
+-	ret = snd_soc_add_platform(dev, platform, platform_drv);
+-	if (ret)
+-		kfree(platform);
+-
+-	return ret;
+-}
+-EXPORT_SYMBOL_GPL(snd_soc_register_platform);
+-
+-/**
+- * snd_soc_remove_platform - Remove a platform from the ASoC core
+- * @platform: the platform to remove
+- */
+-void snd_soc_remove_platform(struct snd_soc_platform *platform)
+-{
+-
+-	mutex_lock(&client_mutex);
+-	list_del(&platform->list);
+-	snd_soc_component_del_unlocked(&platform->component);
+-	mutex_unlock(&client_mutex);
+-
+-	dev_dbg(platform->dev, "ASoC: Unregistered platform '%s'\n",
+-		platform->component.name);
+-
+-	snd_soc_component_cleanup(&platform->component);
+-}
+-EXPORT_SYMBOL_GPL(snd_soc_remove_platform);
+-
+-struct snd_soc_platform *snd_soc_lookup_platform(struct device *dev)
+-{
+-	struct snd_soc_platform *platform;
+-
+-	mutex_lock(&client_mutex);
+-	list_for_each_entry(platform, &platform_list, list) {
+-		if (dev == platform->dev) {
+-			mutex_unlock(&client_mutex);
+-			return platform;
+-		}
+-	}
+-	mutex_unlock(&client_mutex);
+-
+-	return NULL;
+-}
+-EXPORT_SYMBOL_GPL(snd_soc_lookup_platform);
+-
+-/**
+- * snd_soc_unregister_platform - Unregister a platform from the ASoC core
+- *
+- * @dev: platform to unregister
+- */
+-void snd_soc_unregister_platform(struct device *dev)
+-{
+-	struct snd_soc_platform *platform;
+-
+-	platform = snd_soc_lookup_platform(dev);
+-	if (!platform)
+-		return;
+-
+-	snd_soc_remove_platform(platform);
+-	kfree(platform);
+-}
+-EXPORT_SYMBOL_GPL(snd_soc_unregister_platform);
+-
+ static int snd_soc_codec_drv_probe(struct snd_soc_component *component)
+ {
+ 	struct snd_soc_codec *codec = snd_soc_component_to_codec(component);
+diff --git a/sound/soc/soc-devres.c b/sound/soc/soc-devres.c
+index a57921eeee81..7ac745df1412 100644
+--- a/sound/soc/soc-devres.c
++++ b/sound/soc/soc-devres.c
+@@ -52,41 +52,6 @@ int devm_snd_soc_register_component(struct device *dev,
+ }
+ EXPORT_SYMBOL_GPL(devm_snd_soc_register_component);
+ 
+-static void devm_platform_release(struct device *dev, void *res)
+-{
+-	snd_soc_unregister_platform(*(struct device **)res);
+-}
+-
+-/**
+- * devm_snd_soc_register_platform - resource managed platform registration
+- * @dev: Device used to manage platform
+- * @platform_drv: platform to register
+- *
+- * Register a platform driver with automatic unregistration when the device is
+- * unregistered.
+- */
+-int devm_snd_soc_register_platform(struct device *dev,
+-			const struct snd_soc_platform_driver *platform_drv)
+-{
+-	struct device **ptr;
+-	int ret;
+-
+-	ptr = devres_alloc(devm_platform_release, sizeof(*ptr), GFP_KERNEL);
+-	if (!ptr)
+-		return -ENOMEM;
+-
+-	ret = snd_soc_register_platform(dev, platform_drv);
+-	if (ret == 0) {
+-		*ptr = dev;
+-		devres_add(dev, ptr);
+-	} else {
+-		devres_free(ptr);
+-	}
+-
+-	return ret;
+-}
+-EXPORT_SYMBOL_GPL(devm_snd_soc_register_platform);
+-
+ static void devm_card_release(struct device *dev, void *res)
+ {
+ 	snd_soc_unregister_card(*(struct snd_soc_card **)res);
+diff --git a/sound/soc/soc-io.c b/sound/soc/soc-io.c
+index d36a192fbece..c92a04bac3c5 100644
+--- a/sound/soc/soc-io.c
++++ b/sound/soc/soc-io.c
+@@ -267,24 +267,3 @@ int snd_soc_test_bits(struct snd_soc_codec *codec, unsigned int reg,
+ 	return snd_soc_component_test_bits(&codec->component, reg, mask, value);
+ }
+ EXPORT_SYMBOL_GPL(snd_soc_test_bits);
+-
+-int snd_soc_platform_read(struct snd_soc_platform *platform,
+-					unsigned int reg)
+-{
+-	unsigned int val;
+-	int ret;
+-
+-	ret = snd_soc_component_read(&platform->component, reg, &val);
+-	if (ret < 0)
+-		return -1;
+-
+-	return val;
+-}
+-EXPORT_SYMBOL_GPL(snd_soc_platform_read);
+-
+-int snd_soc_platform_write(struct snd_soc_platform *platform,
+-					 unsigned int reg, unsigned int val)
+-{
+-	return snd_soc_component_write(&platform->component, reg, val);
+-}
+-EXPORT_SYMBOL_GPL(snd_soc_platform_write);
+diff --git a/sound/soc/soc-pcm.c b/sound/soc/soc-pcm.c
+index 68d9dc930096..da5a2dcb6520 100644
+--- a/sound/soc/soc-pcm.c
++++ b/sound/soc/soc-pcm.c
+@@ -456,13 +456,12 @@ static void soc_pcm_init_runtime_hw(struct snd_pcm_substream *substream)
+ /*
+  * Called by ALSA when a PCM substream is opened, the runtime->hw record is
+  * then initialized and any private data can be allocated. This also calls
+- * startup for the cpu DAI, platform, machine and codec DAI.
++ * startup for the cpu DAI, component, machine and codec DAI.
+  */
+ static int soc_pcm_open(struct snd_pcm_substream *substream)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+ 	struct snd_pcm_runtime *runtime = substream->runtime;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -492,23 +491,10 @@ static int soc_pcm_open(struct snd_pcm_substream *substream)
+ 		}
+ 	}
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->open) {
+-		ret = platform->driver->ops->open(substream);
+-		if (ret < 0) {
+-			dev_err(platform->dev, "ASoC: can't open platform"
+-				" %s: %d\n", platform->component.name, ret);
+-			goto platform_err;
+-		}
+-	}
+-
+ 	ret = 0;
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->open)
+ 			continue;
+@@ -634,10 +620,6 @@ static int soc_pcm_open(struct snd_pcm_substream *substream)
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->close)
+ 			continue;
+@@ -645,10 +627,6 @@ static int soc_pcm_open(struct snd_pcm_substream *substream)
+ 		component->driver->ops->close(substream);
+ 	}
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->close)
+-		platform->driver->ops->close(substream);
+-
+-platform_err:
+ 	if (cpu_dai->driver->ops->shutdown)
+ 		cpu_dai->driver->ops->shutdown(substream, cpu_dai);
+ out:
+@@ -701,13 +679,12 @@ static void close_delayed_work(struct work_struct *work)
+ 
+ /*
+  * Called by ALSA when a PCM substream is closed. Private data can be
+- * freed here. The cpu DAI, codec DAI, machine and platform are also
++ * freed here. The cpu DAI, codec DAI, machine and components are also
+  * shutdown.
+  */
+ static int soc_pcm_close(struct snd_pcm_substream *substream)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -742,16 +719,9 @@ static int soc_pcm_close(struct snd_pcm_substream *substream)
+ 	if (rtd->dai_link->ops->shutdown)
+ 		rtd->dai_link->ops->shutdown(substream);
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->close)
+-		platform->driver->ops->close(substream);
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->close)
+ 			continue;
+@@ -805,7 +775,6 @@ static int soc_pcm_close(struct snd_pcm_substream *substream)
+ static int soc_pcm_prepare(struct snd_pcm_substream *substream)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -823,22 +792,9 @@ static int soc_pcm_prepare(struct snd_pcm_substream *substream)
+ 		}
+ 	}
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->prepare) {
+-		ret = platform->driver->ops->prepare(substream);
+-		if (ret < 0) {
+-			dev_err(platform->dev, "ASoC: platform prepare error:"
+-				" %d\n", ret);
+-			goto out;
+-		}
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->prepare)
+ 			continue;
+@@ -932,7 +888,6 @@ static int soc_pcm_hw_params(struct snd_pcm_substream *substream,
+ 				struct snd_pcm_hw_params *params)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -994,23 +949,10 @@ static int soc_pcm_hw_params(struct snd_pcm_substream *substream,
+ 	if (ret < 0)
+ 		goto interface_err;
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->hw_params) {
+-		ret = platform->driver->ops->hw_params(substream, params);
+-		if (ret < 0) {
+-			dev_err(platform->dev, "ASoC: %s hw params failed: %d\n",
+-			       platform->component.name, ret);
+-			goto platform_err;
+-		}
+-	}
+-
+ 	ret = 0;
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->hw_params)
+ 			continue;
+@@ -1043,10 +985,6 @@ static int soc_pcm_hw_params(struct snd_pcm_substream *substream,
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->hw_free)
+ 			continue;
+@@ -1054,10 +992,6 @@ static int soc_pcm_hw_params(struct snd_pcm_substream *substream,
+ 		component->driver->ops->hw_free(substream);
+ 	}
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->hw_free)
+-		platform->driver->ops->hw_free(substream);
+-
+-platform_err:
+ 	if (cpu_dai->driver->ops->hw_free)
+ 		cpu_dai->driver->ops->hw_free(substream, cpu_dai);
+ 
+@@ -1085,7 +1019,6 @@ static int soc_pcm_hw_params(struct snd_pcm_substream *substream,
+ static int soc_pcm_hw_free(struct snd_pcm_substream *substream)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -1123,18 +1056,10 @@ static int soc_pcm_hw_free(struct snd_pcm_substream *substream)
+ 	if (rtd->dai_link->ops->hw_free)
+ 		rtd->dai_link->ops->hw_free(substream);
+ 
+-	/* free any DMA resources */
+-	if (platform && platform->driver->ops && platform->driver->ops->hw_free)
+-		platform->driver->ops->hw_free(substream);
+-
+ 	/* free any component resources */
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->hw_free)
+ 			continue;
+@@ -1159,7 +1084,6 @@ static int soc_pcm_hw_free(struct snd_pcm_substream *substream)
+ static int soc_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -1176,19 +1100,9 @@ static int soc_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
+ 		}
+ 	}
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->trigger) {
+-		ret = platform->driver->ops->trigger(substream, cmd);
+-		if (ret < 0)
+-			return ret;
+-	}
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->trigger)
+ 			continue;
+@@ -1240,13 +1154,12 @@ static int soc_pcm_bespoke_trigger(struct snd_pcm_substream *substream,
+ }
+ /*
+  * soc level wrapper for pointer callback
+- * If cpu_dai, codec_dai, platform driver has the delay callback, than
++ * If cpu_dai, codec_dai, component driver has the delay callback, then
+  * the runtime->delay will be updated accordingly.
+  */
+ static snd_pcm_uframes_t soc_pcm_pointer(struct snd_pcm_substream *substream)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+@@ -1257,16 +1170,9 @@ static snd_pcm_uframes_t soc_pcm_pointer(struct snd_pcm_substream *substream)
+ 	snd_pcm_sframes_t codec_delay = 0;
+ 	int i;
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->pointer)
+-		offset = platform->driver->ops->pointer(substream);
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->pointer)
+ 			continue;
+@@ -2470,20 +2376,12 @@ static int soc_pcm_ioctl(struct snd_pcm_substream *substream,
+ 		     unsigned int cmd, void *arg)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+ 
+-	if (platform && platform->driver->ops && platform->driver->ops->ioctl)
+-		return platform->driver->ops->ioctl(substream, cmd, arg);
+-
+ 	for_each_rtdcom(rtd, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-		/* ignore duplication for now */
+-		if (platform && (component == &platform->component))
+-			continue;
+-
+ 		if (!component->driver->ops ||
+ 		    !component->driver->ops->ioctl)
+ 			continue;
+@@ -2987,7 +2885,6 @@ static int soc_rtdcom_mmap(struct snd_pcm_substream *substream,
+ /* create a new pcm */
+ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num)
+ {
+-	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_dai *codec_dai;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+ 	struct snd_soc_component *component;
+@@ -3106,16 +3003,6 @@ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num)
+ 			rtd->ops.mmap		= soc_rtdcom_mmap;
+ 	}
+ 
+-	/* overwrite */
+-	if (platform && platform->driver->ops) {
+-		rtd->ops.ack		= platform->driver->ops->ack;
+-		rtd->ops.copy_user	= platform->driver->ops->copy_user;
+-		rtd->ops.copy_kernel	= platform->driver->ops->copy_kernel;
+-		rtd->ops.fill_silence	= platform->driver->ops->fill_silence;
+-		rtd->ops.page		= platform->driver->ops->page;
+-		rtd->ops.mmap		= platform->driver->ops->mmap;
+-	}
+-
+ 	if (playback)
+ 		snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &rtd->ops);
+ 
+-- 
+2.24.1
+

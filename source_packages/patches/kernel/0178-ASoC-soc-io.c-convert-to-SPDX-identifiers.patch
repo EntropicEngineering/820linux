@@ -1,0 +1,41 @@
+From a8cbda46d6ff13e90fb388e5e1f8346dd3e8fd2d Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:21:54 +0000
+Subject: [PATCH 178/334] ASoC: soc-io.c: convert to SPDX identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-io.c | 19 +++++++------------
+ 1 file changed, 7 insertions(+), 12 deletions(-)
+
+diff --git a/sound/soc/soc-io.c b/sound/soc/soc-io.c
+index 026cd5347e53..1ff9175e9d5e 100644
+--- a/sound/soc/soc-io.c
++++ b/sound/soc/soc-io.c
+@@ -1,15 +1,10 @@
+-/*
+- * soc-io.c  --  ASoC register I/O helpers
+- *
+- * Copyright 2009-2011 Wolfson Microelectronics PLC.
+- *
+- * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++// soc-io.c  --  ASoC register I/O helpers
++//
++// Copyright 2009-2011 Wolfson Microelectronics PLC.
++//
++// Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+ 
+ #include <linux/i2c.h>
+ #include <linux/spi/spi.h>
+-- 
+2.24.1
+

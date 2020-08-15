@@ -1,0 +1,69 @@
+From 89e8f7b2c2b1497cdab2c7091dd7076676886148 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Fri, 11 Jan 2019 18:57:53 +0530
+Subject: [PATCH 323/334] [8278] OSD 45T2906 panel in dts & defconfig
+
+Change-Id: Ia43cd7237db20d4c4dde681f079ab6b252c99fee
+(cherry picked from commit 09c66c80755821d74033ce3cac70c21905b09c9a)
+---
+ arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi | 34 ++++++++++++++++++++
+ arch/arm64/configs/defconfig                 |  1 +
+ 2 files changed, 35 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi b/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
+index 9979b0125ebf..e0c5f3a49906 100644
+--- a/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
++++ b/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
+@@ -325,6 +325,40 @@
+ 				status = "okay";
+ 			};
+ 
++			dsi@994000 {
++				status = "okay";
++				panel@0 {
++					reg = <0>;
++					compatible = "osd,45t2906";
++					vdd-supply = <&pm8994_l22>;
++					dsi-lanes = <2>;
++					panel-width-mm = <55>;
++					panel-height-mm = <98>;
++					pwm-gpio = <&pm8994_gpios 5 0>;
++					panel-reset-gpio = <&msmgpio 8 0>;
++					backlight-gpio = <&msmgpio 135 0>;
++					te-gpio = <&msmgpio 10 0>;
++					status = "okay";
++					port {
++						#address-cells = <1>;
++						#size-cells = <0>;
++
++						panel0_in: endpoint {
++							remote-endpoint = <&dsi0_out>;
++						};
++					};
++				};
++
++				ports {
++					port@1 {
++						endpoint {
++							remote-endpoint = <&panel0_in>;
++							data-lanes = <0 1 2 3>;
++						};
++					};
++				};
++			};
++
+ 			hdmi-phy@9a0600 {
+ 				status = "okay";
+ 
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index f5d411a65592..7dbe49cb0040 100644
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -664,3 +664,4 @@ CONFIG_SLIM_QCOM_NGD_CTRL=y
+ CONFIG_SND_SOC_WCD9335=y
+ CONFIG_REGMAP_SLIMBUS=y
+ CONFIG_R8169=m
++CONFIG_DRM_PANEL_OSD_45T2906=m
+-- 
+2.24.1
+

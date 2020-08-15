@@ -1,0 +1,34 @@
+From 01a35fa078687e735aeb5f48b20a086198f7f3a9 Mon Sep 17 00:00:00 2001
+From: Mahaboob Vali <mvali@intrinsyc.com>
+Date: Thu, 16 Aug 2018 14:56:40 +0530
+Subject: [PATCH 009/334] [6857] phy: qcom-qmp: fix for usb failure in system
+ resume
+
+This is fixed after changing the clocks disable/enable
+sequence in phy init/exit functions.
+
+Change-Id: I346e81175240fc765ae0f6f8ac3df15d6094ed40
+---
+ drivers/phy/qualcomm/phy-qcom-qmp.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/phy/qualcomm/phy-qcom-qmp.c b/drivers/phy/qualcomm/phy-qcom-qmp.c
+index a96e1393c903..7f225bdbac52 100644
+--- a/drivers/phy/qualcomm/phy-qcom-qmp.c
++++ b/drivers/phy/qualcomm/phy-qcom-qmp.c
+@@ -870,6 +870,12 @@ static int qcom_qmp_phy_init(struct phy *phy)
+ 		}
+ 	}
+ 
++	ret = clk_prepare_enable(qphy->pipe_clk);
++	if (ret) {
++		dev_err(qmp->dev, "pipe_clk enable failed, err=%d\n", ret);
++		return ret;
++	}
++
+ 	ret = qcom_qmp_phy_com_init(qmp);
+ 	if (ret)
+ 		goto err_clk;
+-- 
+2.24.1
+

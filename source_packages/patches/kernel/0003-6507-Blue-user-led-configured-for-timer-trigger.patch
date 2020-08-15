@@ -1,0 +1,70 @@
+From 347319c9d1491171d8a6cc296fcb6c0d60f3f833 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Wed, 8 Aug 2018 19:01:12 +0530
+Subject: [PATCH 003/334] [6507] Blue user led configured for timer trigger
+
+This patch configures the Open-Q user leds and enables blue led.
+Qcom led module is made as builtin module to start trigger early
+
+This patch is originally from Mahaboob Vali <mvali@intrinsyc.com>, rebased for 3.1 release
+Change-Id: Ied16c7e9d9d73eb23f4fd35022a4bdda00f1e7b3
+---
+ arch/arm64/boot/dts/qcom/apq8096-openq.dtsi | 24 +++++++++++++++++++++
+ arch/arm64/configs/defconfig                |  3 ++-
+ 2 files changed, 26 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi b/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+index da5ad8535e98..1093a9f16841 100644
+--- a/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
++++ b/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+@@ -67,3 +67,27 @@
+ &wlan_en {
+ 	vin-supply = <&wlan_1p8_en>;
+ };
++
++&{/soc/qcom,spmi@400f000/pmic@3/lpg@b100} {
++
++	user0 {
++		led-sources = <2>;
++		label = "openq-820:green:user0";
++		/delete-property/ default-state;
++		/delete-property/ linux,default-trigger;
++	};
++
++	user1 {
++		led-sources = <1>;
++		label = "openq-820:blue:user1";
++		default-state = "on";
++		linux,default-trigger = "timer";
++	};
++
++	user2 {
++		led-sources = <3>;
++		label = "openq-820:red:user2";
++	};
++
++	/delete-node/ user3;
++};
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index c8e4f7fe27eb..f1deaabae11f 100644
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -484,13 +484,14 @@ CONFIG_NEW_LEDS=y
+ CONFIG_LEDS_CLASS=y
+ CONFIG_LEDS_GPIO=y
+ CONFIG_LEDS_PWM=y
+-CONFIG_LEDS_QCOM_LPG=m
++CONFIG_LEDS_QCOM_LPG=y
+ CONFIG_LEDS_SYSCON=y
+ CONFIG_LEDS_TRIGGER_DISK=y
+ CONFIG_LEDS_TRIGGER_HEARTBEAT=y
+ CONFIG_LEDS_TRIGGER_CPU=y
+ CONFIG_LEDS_TRIGGER_DEFAULT_ON=y
+ CONFIG_LEDS_TRIGGER_PANIC=y
++CONFIG_LEDS_TRIGGER_TIMER=y
+ CONFIG_EDAC=y
+ CONFIG_RTC_CLASS=y
+ CONFIG_RTC_DRV_MAX77686=y
+-- 
+2.24.1
+

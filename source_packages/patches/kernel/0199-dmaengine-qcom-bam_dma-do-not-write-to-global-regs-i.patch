@@ -1,0 +1,47 @@
+From b6d434dbbd1a4bf4c81c9afa7031bf2fc7113ed0 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 15 Feb 2018 12:25:10 +0000
+Subject: [PATCH 199/334] dmaengine: qcom: bam_dma: do not write to global regs
+ in remote mode
+
+BAM_DESC_CNT_TRSHLD register is global register, which can only be written
+when BAM is in master mode, So check the mode of operation before writing
+it.
+
+Without this check SOC's xPU would catch such access and crash the system.
+First noticed on DB820c while testing SLIMBus BAM.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Vinod Koul <vinod.koul@intel.com>
+---
+ drivers/dma/qcom/bam_dma.c | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/dma/qcom/bam_dma.c b/drivers/dma/qcom/bam_dma.c
+index 139e9f5e47a9..6919f501b9f3 100644
+--- a/drivers/dma/qcom/bam_dma.c
++++ b/drivers/dma/qcom/bam_dma.c
+@@ -935,12 +935,15 @@ static void bam_apply_new_config(struct bam_chan *bchan,
+ 	struct bam_device *bdev = bchan->bdev;
+ 	u32 maxburst;
+ 
+-	if (dir == DMA_DEV_TO_MEM)
+-		maxburst = bchan->slave.src_maxburst;
+-	else
+-		maxburst = bchan->slave.dst_maxburst;
++	if (!bdev->controlled_remotely) {
++		if (dir == DMA_DEV_TO_MEM)
++			maxburst = bchan->slave.src_maxburst;
++		else
++			maxburst = bchan->slave.dst_maxburst;
+ 
+-	writel_relaxed(maxburst, bam_addr(bdev, 0, BAM_DESC_CNT_TRSHLD));
++		writel_relaxed(maxburst,
++			       bam_addr(bdev, 0, BAM_DESC_CNT_TRSHLD));
++	}
+ 
+ 	bchan->reconfigure = 0;
+ }
+-- 
+2.24.1
+

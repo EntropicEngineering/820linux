@@ -1,0 +1,34 @@
+From 37ca24405ac0e5a75fa66239fb4e7c8b82ad38c8 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 1 Aug 2018 10:00:17 +0100
+Subject: [PATCH 067/334] ASoC: apq8096: add format to fixup
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ sound/soc/qcom/apq8096.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/sound/soc/qcom/apq8096.c b/sound/soc/qcom/apq8096.c
+index b886c18177ef..c8e29d7df304 100644
+--- a/sound/soc/qcom/apq8096.c
++++ b/sound/soc/qcom/apq8096.c
+@@ -8,6 +8,7 @@
+ #include <linux/of_device.h>
+ #include <sound/soc.h>
+ #include <sound/soc-dapm.h>
++#include <sound/pcm_params.h>
+ #include <sound/pcm.h>
+ 
+ #define SLIM_MAX_TX_PORTS 16
+@@ -87,6 +88,8 @@ static int apq8096_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+ 	rate->min = rate->max = 48000;
+ 	channels->min = channels->max = 2;
+ 
++	params_set_format(params, SNDRV_PCM_FORMAT_S16_LE);
++
+ 	return 0;
+ }
+ 
+-- 
+2.24.1
+

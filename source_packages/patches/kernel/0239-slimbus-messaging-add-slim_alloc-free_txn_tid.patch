@@ -1,0 +1,165 @@
+From db24fca6c041bf4141597de0b9e943288ac761cd Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 16 May 2018 11:43:19 +0100
+Subject: [PATCH 239/334] slimbus: messaging: add slim_alloc/free_txn_tid()
+
+This patch adds slim_alloc_txn_tid() and slim_free_txn_tid() api
+to allow controllers like ngd to allocate tids for user specific
+commands. This also cleans up the existing code to use single place
+for tid allocations and free.
+
+This patch also make the tid allocation cyclic one, its very useful
+to track the transactions back during debug.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/slimbus/messaging.c | 74 ++++++++++++++++++++++++++-----------
+ drivers/slimbus/slimbus.h   |  2 +
+ 2 files changed, 54 insertions(+), 22 deletions(-)
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index e3605ed1c459..d5879142dbef 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -29,22 +29,19 @@ void slim_msg_response(struct slim_controller *ctrl, u8 *reply, u8 tid, u8 len)
+ 
+ 	spin_lock_irqsave(&ctrl->txn_lock, flags);
+ 	txn = idr_find(&ctrl->tid_idr, tid);
+-	if (txn == NULL) {
+-		spin_unlock_irqrestore(&ctrl->txn_lock, flags);
++	spin_unlock_irqrestore(&ctrl->txn_lock, flags);
++
++	if (txn == NULL)
+ 		return;
+-	}
+ 
+ 	msg = txn->msg;
+ 	if (msg == NULL || msg->rbuf == NULL) {
+ 		dev_err(ctrl->dev, "Got response to invalid TID:%d, len:%d\n",
+ 				tid, len);
+-		spin_unlock_irqrestore(&ctrl->txn_lock, flags);
+ 		return;
+ 	}
+ 
+-	idr_remove(&ctrl->tid_idr, tid);
+-	spin_unlock_irqrestore(&ctrl->txn_lock, flags);
+-
++	slim_free_txn_tid(ctrl, txn);
+ 	memcpy(msg->rbuf, reply, len);
+ 	if (txn->comp)
+ 		complete(txn->comp);
+@@ -55,6 +52,48 @@ void slim_msg_response(struct slim_controller *ctrl, u8 *reply, u8 tid, u8 len)
+ }
+ EXPORT_SYMBOL_GPL(slim_msg_response);
+ 
++/**
++ * slim_alloc_txn_tid() - Allocate a tid to txn
++ *
++ * @ctrl: Controller handle
++ * @txn: transaction to be allocated with tid.
++ *
++ * Return: zero on success with valid txn->tid and error code on failures.
++ */
++int slim_alloc_txn_tid(struct slim_controller *ctrl, struct slim_msg_txn *txn)
++{
++	unsigned long flags;
++	int ret = 0;
++
++	spin_lock_irqsave(&ctrl->txn_lock, flags);
++	ret = idr_alloc_cyclic(&ctrl->tid_idr, txn, 0,
++				SLIM_MAX_TIDS, GFP_ATOMIC);
++	if (ret < 0) {
++		spin_unlock_irqrestore(&ctrl->txn_lock, flags);
++		return ret;
++	}
++	txn->tid = ret;
++	spin_unlock_irqrestore(&ctrl->txn_lock, flags);
++	return 0;
++}
++EXPORT_SYMBOL_GPL(slim_alloc_txn_tid);
++
++/**
++ * slim_free_txn_tid() - Freee tid of txn
++ *
++ * @ctrl: Controller handle
++ * @txn: transaction whose tid should be freed
++ */
++void slim_free_txn_tid(struct slim_controller *ctrl, struct slim_msg_txn *txn)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&ctrl->txn_lock, flags);
++	idr_remove(&ctrl->tid_idr, txn->tid);
++	spin_unlock_irqrestore(&ctrl->txn_lock, flags);
++}
++EXPORT_SYMBOL_GPL(slim_free_txn_tid);
++
+ /**
+  * slim_do_transfer() - Process a SLIMbus-messaging transaction
+  *
+@@ -72,8 +111,7 @@ int slim_do_transfer(struct slim_controller *ctrl, struct slim_msg_txn *txn)
+ {
+ 	DECLARE_COMPLETION_ONSTACK(done);
+ 	bool need_tid = false, clk_pause_msg = false;
+-	unsigned long flags;
+-	int ret, tid, timeout;
++	int ret, timeout;
+ 
+ 	/*
+ 	 * do not vote for runtime-PM if the transactions are part of clock
+@@ -97,34 +135,26 @@ int slim_do_transfer(struct slim_controller *ctrl, struct slim_msg_txn *txn)
+ 	need_tid = slim_tid_txn(txn->mt, txn->mc);
+ 
+ 	if (need_tid) {
+-		spin_lock_irqsave(&ctrl->txn_lock, flags);
+-		tid = idr_alloc(&ctrl->tid_idr, txn, 0,
+-				SLIM_MAX_TIDS, GFP_ATOMIC);
+-		txn->tid = tid;
++		ret = slim_alloc_txn_tid(ctrl, txn);
++		if (ret)
++			return ret;
+ 
+ 		if (!txn->msg->comp)
+ 			txn->comp = &done;
+ 		else
+ 			txn->comp = txn->comp;
+-
+-		spin_unlock_irqrestore(&ctrl->txn_lock, flags);
+-
+-		if (tid < 0)
+-			return tid;
+ 	}
+ 
+ 	ret = ctrl->xfer_msg(ctrl, txn);
+ 
+-	if (ret && need_tid && !txn->msg->comp) {
++	if (!ret && need_tid && !txn->msg->comp) {
+ 		unsigned long ms = txn->rl + HZ;
+ 
+ 		timeout = wait_for_completion_timeout(txn->comp,
+ 						      msecs_to_jiffies(ms));
+ 		if (!timeout) {
+ 			ret = -ETIMEDOUT;
+-			spin_lock_irqsave(&ctrl->txn_lock, flags);
+-			idr_remove(&ctrl->tid_idr, tid);
+-			spin_unlock_irqrestore(&ctrl->txn_lock, flags);
++			slim_free_txn_tid(ctrl, txn);
+ 		}
+ 	}
+ 
+diff --git a/drivers/slimbus/slimbus.h b/drivers/slimbus/slimbus.h
+index 79f8e05d92dd..2ba6545fa716 100644
+--- a/drivers/slimbus/slimbus.h
++++ b/drivers/slimbus/slimbus.h
+@@ -240,6 +240,8 @@ int slim_unregister_controller(struct slim_controller *ctrl);
+ void slim_msg_response(struct slim_controller *ctrl, u8 *reply, u8 tid, u8 l);
+ int slim_do_transfer(struct slim_controller *ctrl, struct slim_msg_txn *txn);
+ int slim_ctrl_clk_pause(struct slim_controller *ctrl, bool wakeup, u8 restart);
++int slim_alloc_txn_tid(struct slim_controller *ctrl, struct slim_msg_txn *txn);
++void slim_free_txn_tid(struct slim_controller *ctrl, struct slim_msg_txn *txn);
+ 
+ static inline bool slim_tid_txn(u8 mt, u8 mc)
+ {
+-- 
+2.24.1
+

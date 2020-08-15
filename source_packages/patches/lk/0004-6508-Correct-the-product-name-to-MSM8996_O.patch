@@ -1,0 +1,28 @@
+From ab215e3449f0e5dea09e9099bef0018b1af77f3f Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Fri, 1 Jun 2018 12:58:22 +0530
+Subject: [PATCH 04/10] [6508] Correct the product name to MSM8996_O
+
+"fastboot getvar product" shows MSM8996 but android Oreo Lk shows MSM8996_O, so align with it to avoid Jflash issues.
+
+Change-Id: Ifab50b98ff85e50888e381aa1f48a099dcf7b0c5
+---
+ makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/makefile b/makefile
+index 531aa127..c13e1836 100644
+--- a/makefile
++++ b/makefile
+@@ -148,7 +148,7 @@ ALLOBJS := \
+ 
+ # add some automatic configuration defines
+ DEFINES += \
+-	BOARD=$(PROJECT) \
++	BOARD=$(PROJECT)_O \
+ 	PROJECT_$(PROJECT)=1 \
+ 	TARGET_$(TARGET)=1 \
+ 	PLATFORM_$(PLATFORM)=1 \
+-- 
+2.24.1
+

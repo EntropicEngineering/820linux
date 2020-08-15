@@ -1,0 +1,138 @@
+From 197a8024b67879d74aa2ffd21a304f71dfec6ac2 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Fri, 13 Jul 2018 10:10:28 +0100
+Subject: [PATCH 058/334] ASoC: qcom: apq8016: remove component fw stuff
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ sound/soc/qcom/apq8016_sbc.c | 76 +++---------------------------------
+ 1 file changed, 6 insertions(+), 70 deletions(-)
+
+diff --git a/sound/soc/qcom/apq8016_sbc.c b/sound/soc/qcom/apq8016_sbc.c
+index 904f087b5e29..eb37974ece26 100644
+--- a/sound/soc/qcom/apq8016_sbc.c
++++ b/sound/soc/qcom/apq8016_sbc.c
+@@ -15,7 +15,6 @@
+ #include <linux/device.h>
+ #include <linux/module.h>
+ #include <linux/kernel.h>
+-#include <linux/component.h>
+ #include <linux/io.h>
+ #include <linux/of.h>
+ #include <linux/of_address.h>
+@@ -191,8 +190,6 @@ static struct apq8016_sbc_data *apq8016_sbc_parse_of(struct snd_soc_card *card)
+ 	if (!data)
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	component_bind_all(dev, data);
+-
+ 	card->dai_link	= &data->dai_link[0];
+ 	card->num_links	= num_links;
+ 
+@@ -274,8 +271,9 @@ static const struct snd_soc_dapm_widget apq8016_sbc_dapm_widgets[] = {
+ 	SND_SOC_DAPM_MIC("Digital Mic2", NULL),
+ };
+ 
+-static int apq8016_sbc_bind(struct device *dev)
++static int apq8016_sbc_platform_probe(struct platform_device *pdev)
+ {
++	struct device *dev = &pdev->dev;
+ 	struct snd_soc_card *card;
+ 	struct apq8016_sbc_data *data;
+ 	struct resource res;
+@@ -306,6 +304,7 @@ static int apq8016_sbc_bind(struct device *dev)
+ 		return PTR_ERR(data->spkr_iomux);
+ 
+ 	data->card = card;
++	card->auto_bind = true;
+ 
+ 	dev_set_drvdata(dev, data);
+ 	snd_soc_card_set_drvdata(card, data);
+@@ -313,81 +312,18 @@ static int apq8016_sbc_bind(struct device *dev)
+ 	return snd_soc_register_card(card);
+ }
+ 
+-static void apq8016_sbc_unbind(struct device *dev)
++static int apq8016_sbc_platform_remove(struct platform_device *pdev)
+ {
++	struct device *dev = &pdev->dev;
+ 	struct snd_soc_card *card = dev_get_drvdata(dev);
+ 	struct apq8016_sbc_data *data = snd_soc_card_get_drvdata(card);
+ 
+-	component_unbind_all(dev, data);
+-
++	card->auto_bind = false;
+ 	snd_soc_unregister_card(card);
+ 
+ 	kfree(data->card);
+ 	kfree(data);
+ 
+-}
+-
+-static const struct component_master_ops apq8016_sbc_ops = {
+-	.bind = apq8016_sbc_bind,
+-	.unbind = apq8016_sbc_unbind,
+-};
+-
+-static int apq8016_compare_of(struct device *dev, void *data)
+-{
+-	return dev->of_node == data;
+-}
+-
+-static void apq8016_release_of(struct device *dev, void *data)
+-{
+-        of_node_put(data);
+-}
+-
+-static int add_audio_components(struct device *dev,
+-				  struct component_match **matchptr)
+-{
+-	struct device_node *np, *platform, *cpu, *node, *dai_node;
+-	
+-	node = dev->of_node;
+-
+-	for_each_child_of_node(node, np) {
+-
+-		cpu = of_get_child_by_name(np, "cpu");
+-		if (cpu) {
+-			dai_node = of_parse_phandle(cpu, "sound-dai", 0);
+-			of_node_get(dai_node);
+-			component_match_add_release(dev, matchptr, apq8016_release_of,
+-                                    apq8016_compare_of, dai_node);
+-		}
+-
+-		platform = of_get_child_by_name(np, "platform");
+-		if (platform) {
+-			dai_node = of_parse_phandle(platform, "sound-dai", 0);
+-			component_match_add_release(dev, matchptr, apq8016_release_of,
+-                                    apq8016_compare_of, dai_node);
+-		}
+-
+-	}
+-
+-	return 0;
+-
+-}
+-
+-static int apq8016_sbc_platform_probe(struct platform_device *pdev)
+-{
+-	struct component_match *match = NULL;
+-	int ret;
+-	
+-	ret = add_audio_components(&pdev->dev, &match);
+-	if (ret)
+-		return ret;
+-
+-	return component_master_add_with_match(&pdev->dev, &apq8016_sbc_ops, match);
+-}
+-
+-static int apq8016_sbc_platform_remove(struct platform_device *pdev)
+-{
+-	component_master_del(&pdev->dev, &apq8016_sbc_ops);
+-
+ 	return 0;
+ }
+ 
+-- 
+2.24.1
+

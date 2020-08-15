@@ -1,0 +1,40 @@
+From 4b87abf6f93d7f005778e4e8258bce30005a5157 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Fri, 11 May 2018 12:17:44 +0100
+Subject: [PATCH 269/334] slimbus: qcom: remove unused variable
+
+This patch fixes below warning when driver is compiled with W=1
+qcom-ctrl.c: In function 'qcom_slim_rxwq':
+qcom-ctrl.c:442:13: warning: variable 'len' set but not used
+ [-Wunused-but-set-variable]
+
+len seems to be unused in this function, so remove it.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/qcom-ctrl.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/slimbus/qcom-ctrl.c b/drivers/slimbus/qcom-ctrl.c
+index ffb46f915334..bb36a8fbc9b1 100644
+--- a/drivers/slimbus/qcom-ctrl.c
++++ b/drivers/slimbus/qcom-ctrl.c
+@@ -439,13 +439,12 @@ static int slim_get_current_rxbuf(struct qcom_slim_ctrl *ctrl, void *buf)
+ static void qcom_slim_rxwq(struct work_struct *work)
+ {
+ 	u8 buf[SLIM_MSGQ_BUF_LEN];
+-	u8 mc, mt, len;
++	u8 mc, mt;
+ 	int ret;
+ 	struct qcom_slim_ctrl *ctrl = container_of(work, struct qcom_slim_ctrl,
+ 						 wd);
+ 
+ 	while ((slim_get_current_rxbuf(ctrl, buf)) != -ENODATA) {
+-		len = SLIM_HEADER_GET_RL(buf[0]);
+ 		mt = SLIM_HEADER_GET_MT(buf[0]);
+ 		mc = SLIM_HEADER_GET_MC(buf[1]);
+ 		if (mt == SLIM_MSG_MT_CORE &&
+-- 
+2.24.1
+

@@ -1,0 +1,34 @@
+From 4506d619474a65fdc1e97918ca261ee2c593f7cf Mon Sep 17 00:00:00 2001
+From: Mark Brown <broonie@kernel.org>
+Date: Fri, 9 Mar 2018 12:46:27 +0000
+Subject: [PATCH 127/334] ASoC: core: Fix typo roup->group
+
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index ee982966f9c4..e20f29c636ef 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -221,14 +221,14 @@ static const struct attribute_group soc_dapm_dev_group = {
+ 	.is_visible = soc_dev_attr_is_visible,
+ };
+ 
+-static const struct attribute_group soc_dev_roup = {
++static const struct attribute_group soc_dev_group = {
+ 	.attrs = soc_dev_attrs,
+ 	.is_visible = soc_dev_attr_is_visible,
+ };
+ 
+ static const struct attribute_group *soc_dev_attr_groups[] = {
+ 	&soc_dapm_dev_group,
+-	&soc_dev_roup,
++	&soc_dev_group,
+ 	NULL
+ };
+ 
+-- 
+2.24.1
+

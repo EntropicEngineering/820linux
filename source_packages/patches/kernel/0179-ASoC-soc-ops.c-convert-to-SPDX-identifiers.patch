@@ -1,0 +1,51 @@
+From 73431a755ee8f6674b5e004277581f223f142f8f Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:22:30 +0000
+Subject: [PATCH 179/334] ASoC: soc-ops.c: convert to SPDX identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-ops.c | 29 ++++++++++++-----------------
+ 1 file changed, 12 insertions(+), 17 deletions(-)
+
+diff --git a/sound/soc/soc-ops.c b/sound/soc/soc-ops.c
+index 7144a51ddfa9..592efb370c44 100644
+--- a/sound/soc/soc-ops.c
++++ b/sound/soc/soc-ops.c
+@@ -1,20 +1,15 @@
+-/*
+- * soc-ops.c  --  Generic ASoC operations
+- *
+- * Copyright 2005 Wolfson Microelectronics PLC.
+- * Copyright 2005 Openedhand Ltd.
+- * Copyright (C) 2010 Slimlogic Ltd.
+- * Copyright (C) 2010 Texas Instruments Inc.
+- *
+- * Author: Liam Girdwood <lrg@slimlogic.co.uk>
+- *         with code, comments and ideas from :-
+- *         Richard Purdie <richard@openedhand.com>
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++// soc-ops.c  --  Generic ASoC operations
++//
++// Copyright 2005 Wolfson Microelectronics PLC.
++// Copyright 2005 Openedhand Ltd.
++// Copyright (C) 2010 Slimlogic Ltd.
++// Copyright (C) 2010 Texas Instruments Inc.
++//
++// Author: Liam Girdwood <lrg@slimlogic.co.uk>
++//         with code, comments and ideas from :-
++//         Richard Purdie <richard@openedhand.com>
+ 
+ #include <linux/module.h>
+ #include <linux/moduleparam.h>
+-- 
+2.24.1
+

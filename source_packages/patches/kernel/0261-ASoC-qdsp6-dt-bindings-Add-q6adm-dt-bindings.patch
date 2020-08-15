@@ -1,0 +1,60 @@
+From 9561b9e49f41bb8e5fa20f03e45d34b47daf6b0b Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 9 May 2018 13:56:16 +0100
+Subject: [PATCH 261/334] ASoC: qdsp6: dt-bindings: Add q6adm dt bindings
+
+This patch add DT bindings for ADM (Audio Device Manager) DSP module.
+This module implements mixer controls to setup the connections between
+AFE ports and ASM streams.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-and-tested-by: Rohit kumar <rohitkr@codeaurora.org>
+Reviewed-by: Rob Herring <robh@kernel.org>
+Reviewed-by: Banajit Goswami <bgoswami@codeaurora.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+
+Conflicts:
+	Documentation/devicetree/bindings/sound/qcom,q6adm.txt
+---
+ .../devicetree/bindings/sound/qcom,q6adm.txt        | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/sound/qcom,q6adm.txt b/Documentation/devicetree/bindings/sound/qcom,q6adm.txt
+index ddd93c80bd8a..cb709e5dbc44 100644
+--- a/Documentation/devicetree/bindings/sound/qcom,q6adm.txt
++++ b/Documentation/devicetree/bindings/sound/qcom,q6adm.txt
+@@ -9,10 +9,10 @@ used by the apr service device.
+ - compatible:
+ 	Usage: required
+ 	Value type: <stringlist>
+-	Definition: must be "qcom,adm-v<MAJOR-NUMBER>.<MINOR-NUMBER>".
+-		   Or "qcom,adm" where the version number can be queried
++	Definition: must be "qcom,q6adm-v<MAJOR-NUMBER>.<MINOR-NUMBER>".
++		   Or "qcom,q6adm" where the version number can be queried
+ 		   from DSP.
+-		   example "qcom,adm-v2.0"
++		   example "qcom,q6adm-v2.0"
+ 
+ 
+ = ADM routing
+@@ -20,14 +20,13 @@ used by the apr service device.
+ 
+ - #sound-dai-cells
+ 	Usage: required
+-	Value type: <prop-encoded-array>
++	Value type: <u32>
+ 	Definition: Must be 0
+ 
+ = EXAMPLE
+-q6adm: q6adm {
++q6adm@8 {
+ 	compatible = "qcom,q6adm";
+-	qcom,apr-svc-name = "ADM";
+-	qcom,apr-svc-id = <APR_SVC_ADM>;
++	reg = <APR_SVC_ADM>;
+ 	q6routing: routing {
+ 		#sound-dai-cells = <0>;
+ 	};
+-- 
+2.24.1
+

@@ -1,0 +1,99 @@
+From 0e00bce39aca4041c1a2e58cb1066f7d0dd55a10 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Mon, 11 Dec 2017 23:42:59 +0000
+Subject: [PATCH 218/334] slimbus: core: add support to device tree helper
+
+This patch adds support to parse slim devices from device tree.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviwed-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/core.c | 50 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 50 insertions(+)
+
+diff --git a/drivers/slimbus/core.c b/drivers/slimbus/core.c
+index ed53ae6bd1cc..1accb20ed5cd 100644
+--- a/drivers/slimbus/core.c
++++ b/drivers/slimbus/core.c
+@@ -8,6 +8,7 @@
+ #include <linux/slab.h>
+ #include <linux/init.h>
+ #include <linux/idr.h>
++#include <linux/of.h>
+ #include <linux/slimbus.h>
+ #include "slimbus.h"
+ 
+@@ -113,6 +114,9 @@ static int slim_add_device(struct slim_controller *ctrl,
+ 	sbdev->dev.driver = NULL;
+ 	sbdev->ctrl = ctrl;
+ 
++	if (node)
++		sbdev->dev.of_node = of_node_get(node);
++
+ 	dev_set_name(&sbdev->dev, "%x:%x:%x:%x",
+ 				  sbdev->e_addr.manf_id,
+ 				  sbdev->e_addr.prod_code,
+@@ -143,6 +147,50 @@ static struct slim_device *slim_alloc_device(struct slim_controller *ctrl,
+ 	return sbdev;
+ }
+ 
++static void of_register_slim_devices(struct slim_controller *ctrl)
++{
++	struct device *dev = ctrl->dev;
++	struct device_node *node;
++
++	if (!ctrl->dev->of_node)
++		return;
++
++	for_each_child_of_node(ctrl->dev->of_node, node) {
++		struct slim_device *sbdev;
++		struct slim_eaddr e_addr;
++		const char *compat = NULL;
++		int reg[2], ret;
++		int manf_id, prod_code;
++
++		compat = of_get_property(node, "compatible", NULL);
++		if (!compat)
++			continue;
++
++		ret = sscanf(compat, "slim%x,%x", &manf_id, &prod_code);
++		if (ret != 2) {
++			dev_err(dev, "Manf ID & Product code not found %s\n",
++				compat);
++			continue;
++		}
++
++		ret = of_property_read_u32_array(node, "reg", reg, 2);
++		if (ret) {
++			dev_err(dev, "Device and Instance id not found:%d\n",
++				ret);
++			continue;
++		}
++
++		e_addr.dev_index = reg[0];
++		e_addr.instance = reg[1];
++		e_addr.manf_id = manf_id;
++		e_addr.prod_code = prod_code;
++
++		sbdev = slim_alloc_device(ctrl, &e_addr, node);
++		if (!sbdev)
++			continue;
++	}
++}
++
+ /*
+  * slim_register_controller() - Controller bring-up and registration.
+  *
+@@ -174,6 +222,8 @@ int slim_register_controller(struct slim_controller *ctrl)
+ 	dev_dbg(ctrl->dev, "Bus [%s] registered:dev:%p\n",
+ 		ctrl->name, ctrl->dev);
+ 
++	of_register_slim_devices(ctrl);
++
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(slim_register_controller);
+-- 
+2.24.1
+

@@ -1,0 +1,41 @@
+From 31753e7758d53b352bd6226b4d392b22097dbe02 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Tue, 5 Dec 2017 04:23:05 +0000
+Subject: [PATCH 099/334] ASoC: don't use rtd->codec on snd_soc_new_compress()
+
+rtd->codec will be removed soon.
+rtd->codec = rtd->codec_dai->codec, thus,
+we can use rtd->codec_dai->component instead of it.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-compress.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-compress.c b/sound/soc/soc-compress.c
+index d9b1e6417fb9..81232f4ab614 100644
+--- a/sound/soc/soc-compress.c
++++ b/sound/soc/soc-compress.c
+@@ -1096,7 +1096,6 @@ static struct snd_compr_ops soc_compr_dyn_ops = {
+  */
+ int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
+ {
+-	struct snd_soc_codec *codec = rtd->codec;
+ 	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_component *component;
+ 	struct snd_soc_rtdcom_list *rtdcom;
+@@ -1199,8 +1198,9 @@ int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
+ 	ret = snd_compress_new(rtd->card->snd_card, num, direction,
+ 				new_name, compr);
+ 	if (ret < 0) {
++		component = rtd->codec_dai->component;
+ 		pr_err("compress asoc: can't create compress for codec %s\n",
+-			codec->component.name);
++			component->name);
+ 		goto compr_err;
+ 	}
+ 
+-- 
+2.24.1
+

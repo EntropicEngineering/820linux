@@ -1,0 +1,60 @@
+From fb34a476d2e93423d975b8a158bcfda2cf7e7da7 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 19 Mar 2018 07:27:17 +0000
+Subject: [PATCH 133/334] soc-core: don't call kfree() for component
+
+When driver register its component to ALSA SoC, almost all drivers are
+using snd_soc_register_component(), but soc-generic-dmaengine-pcm is
+using snd_soc_add_component().
+
+Existing component function had been assumed that registered component
+was allocated, and it calling kfree() for it.
+But, the user who used snd_soc_add_component() doesn't.
+
+This patch uses devm_kzalloc() instead of kzalloc() for component,
+and doesn't call kree() anymore.
+This patch fixes commit be7ee5f32a9a ("ASoC: soc-generic-dmaengine-pcm:
+replace platform to component").
+Allwinner H3 SoC will crash without this patch.
+Thanks Jernej report.
+
+Reported-by: Jernej Skrabec <jernej.skrabec@siol.net>
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Tested-by: Jernej Skrabec <jernej.skrabec@siol.net>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 88ef45e0db3c..9f9e9110c31c 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -3420,7 +3420,6 @@ int snd_soc_add_component(struct device *dev,
+ err_cleanup:
+ 	snd_soc_component_cleanup(component);
+ err_free:
+-	kfree(component);
+ 	return ret;
+ }
+ EXPORT_SYMBOL_GPL(snd_soc_add_component);
+@@ -3432,7 +3431,7 @@ int snd_soc_register_component(struct device *dev,
+ {
+ 	struct snd_soc_component *component;
+ 
+-	component = kzalloc(sizeof(*component), GFP_KERNEL);
++	component = devm_kzalloc(dev, sizeof(*component), GFP_KERNEL);
+ 	if (!component)
+ 		return -ENOMEM;
+ 
+@@ -3467,7 +3466,6 @@ static int __snd_soc_unregister_component(struct device *dev)
+ 
+ 	if (found) {
+ 		snd_soc_component_cleanup(component);
+-		kfree(component);
+ 	}
+ 
+ 	return found;
+-- 
+2.24.1
+

@@ -1,0 +1,33 @@
+From 934ba300d2c1b4c26d46f5787523ccdc8babcd01 Mon Sep 17 00:00:00 2001
+From: Sudhesh Kumar <sukumar@intrinsyc.com>
+Date: Fri, 17 Jan 2020 16:00:23 +0530
+Subject: [PATCH 10/10] [10668] Make jd9161_wvga_video as default display
+
+Default to "jd9161_wvga_video" if
+"fastboot oem select-display-panel" is selected.
+
+Change-Id: I681a62e1e48b8f7ff4c3bd08aa2824ca1f2b2919
+Signed-off-by: Sudhesh Kumar <sukumar@intrinsyc.com>
+---
+ app/aboot/aboot.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/app/aboot/aboot.c b/app/aboot/aboot.c
+index f4bc3fba..c2c59c50 100644
+--- a/app/aboot/aboot.c
++++ b/app/aboot/aboot.c
+@@ -3644,6 +3644,11 @@ void aboot_init(const struct app_descriptor *app)
+ 	read_device_info(&device);
+ 	read_allow_oem_unlock(&device);
+ 
++	if (!strcmp(device.display_panel + strspn(device.display_panel, " "), "")) {
++		//default to "jd9161_wvga_video" if "fastboot oem select-display-panel" is selected.
++		strcpy(device.display_panel,"jd9161_wvga_video");
++	}
++
+ 	/* Display splash screen if enabled */
+ #if DISPLAY_SPLASH_SCREEN
+ 	/* Disable display by default for now, this can be changed with
+-- 
+2.24.1
+

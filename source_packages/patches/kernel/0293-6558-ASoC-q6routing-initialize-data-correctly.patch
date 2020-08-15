@@ -1,0 +1,38 @@
+From b1b8424a1eea10ee7da26bb306a7844c6b292486 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Tue, 28 Aug 2018 16:53:08 +0100
+Subject: [PATCH 293/334] [6558] ASoC: q6routing: initialize data correctly
+
+Some of the router data fields are left as default zeros which are
+valid dai ids, so initialize these to invalid value of -1.
+
+Without intializing these correctly get_session_from_id() can return
+incorrect session resulting in not closing the opened copp and messing
+up with the copp ref count.
+
+Fixes: e3a33673e845 ("ASoC: qdsp6: q6routing: Add q6routing driver")
+Change-Id: Ia31d215e262532b9ce3ebaf91c9b1cb6088fd21b
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ sound/soc/qcom/qdsp6/q6routing.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/qcom/qdsp6/q6routing.c b/sound/soc/qcom/qdsp6/q6routing.c
+index 1d33b00e5b44..54bc7f28f192 100644
+--- a/sound/soc/qcom/qdsp6/q6routing.c
++++ b/sound/soc/qcom/qdsp6/q6routing.c
+@@ -960,8 +960,10 @@ static int msm_routing_probe(struct snd_soc_component *c)
+ {
+ 	int i;
+ 
+-	for (i = 0; i < MAX_SESSIONS; i++)
++	for (i = 0; i < MAX_SESSIONS; i++) {
+ 		routing_data->sessions[i].port_id = -1;
++		routing_data->sessions[i].fedai_id = -1;
++	}
+ 
+ 	return 0;
+ }
+-- 
+2.24.1
+

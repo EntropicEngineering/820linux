@@ -1,0 +1,47 @@
+From a882462ee50e698544f23898332df428a85f0b9a Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 29 Jan 2018 02:40:52 +0000
+Subject: [PATCH 115/334] ASoC: soc-utils: replace platform to component
+
+Now platform can be replaced to component, let's do it.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-utils.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/sound/soc/soc-utils.c b/sound/soc/soc-utils.c
+index bcd3da2739e2..e237858c9ed4 100644
+--- a/sound/soc/soc-utils.c
++++ b/sound/soc/soc-utils.c
+@@ -284,7 +284,7 @@ static const struct snd_pcm_ops dummy_dma_ops = {
+ 	.ioctl		= snd_pcm_lib_ioctl,
+ };
+ 
+-static const struct snd_soc_platform_driver dummy_platform = {
++static const struct snd_soc_component_driver dummy_platform = {
+ 	.ops = &dummy_dma_ops,
+ };
+ 
+@@ -342,7 +342,8 @@ static int snd_soc_dummy_probe(struct platform_device *pdev)
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	ret = snd_soc_register_platform(&pdev->dev, &dummy_platform);
++	ret = devm_snd_soc_register_component(&pdev->dev, &dummy_platform,
++					      NULL, 0);
+ 	if (ret < 0) {
+ 		snd_soc_unregister_codec(&pdev->dev);
+ 		return ret;
+@@ -353,7 +354,6 @@ static int snd_soc_dummy_probe(struct platform_device *pdev)
+ 
+ static int snd_soc_dummy_remove(struct platform_device *pdev)
+ {
+-	snd_soc_unregister_platform(&pdev->dev);
+ 	snd_soc_unregister_codec(&pdev->dev);
+ 
+ 	return 0;
+-- 
+2.24.1
+

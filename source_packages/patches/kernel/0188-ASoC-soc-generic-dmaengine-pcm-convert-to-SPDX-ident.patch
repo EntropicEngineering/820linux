@@ -1,0 +1,68 @@
+From 47092bfb1ef83d2d7caf0f9ce8cf46e6a100163a Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:25:11 +0000
+Subject: [PATCH 188/334] ASoC: soc-generic-dmaengine-pcm: convert to SPDX
+ identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/dmaengine_pcm.h         | 14 +++-----------
+ sound/soc/soc-generic-dmaengine-pcm.c | 19 +++++--------------
+ 2 files changed, 8 insertions(+), 25 deletions(-)
+
+diff --git a/include/sound/dmaengine_pcm.h b/include/sound/dmaengine_pcm.h
+index 47ef486852ed..5d60746baad8 100644
+--- a/include/sound/dmaengine_pcm.h
++++ b/include/sound/dmaengine_pcm.h
+@@ -1,17 +1,9 @@
+-/*
++/* SPDX-License-Identifier: GPL-2.0+
++ *
+  *  Copyright (C) 2012, Analog Devices Inc.
+  *	Author: Lars-Peter Clausen <lars@metafoo.de>
+- *
+- *  This program is free software; you can redistribute it and/or modify it
+- *  under  the terms of the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the License, or (at your
+- *  option) any later version.
+- *
+- *  You should have received a copy of the GNU General Public License along
+- *  with this program; if not, write to the Free Software Foundation, Inc.,
+- *  675 Mass Ave, Cambridge, MA 02139, USA.
+- *
+  */
++
+ #ifndef __SOUND_DMAENGINE_PCM_H__
+ #define __SOUND_DMAENGINE_PCM_H__
+ 
+diff --git a/sound/soc/soc-generic-dmaengine-pcm.c b/sound/soc/soc-generic-dmaengine-pcm.c
+index 56a541b9ff9e..13bdca6e41c5 100644
+--- a/sound/soc/soc-generic-dmaengine-pcm.c
++++ b/sound/soc/soc-generic-dmaengine-pcm.c
+@@ -1,17 +1,8 @@
+-/*
+- *  Copyright (C) 2013, Analog Devices Inc.
+- *	Author: Lars-Peter Clausen <lars@metafoo.de>
+- *
+- *  This program is free software; you can redistribute it and/or modify it
+- *  under  the terms of the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the License, or (at your
+- *  option) any later version.
+- *
+- *  You should have received a copy of the GNU General Public License along
+- *  with this program; if not, write to the Free Software Foundation, Inc.,
+- *  675 Mass Ave, Cambridge, MA 02139, USA.
+- *
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++//  Copyright (C) 2013, Analog Devices Inc.
++//	Author: Lars-Peter Clausen <lars@metafoo.de>
++
+ #include <linux/module.h>
+ #include <linux/init.h>
+ #include <linux/dmaengine.h>
+-- 
+2.24.1
+

@@ -1,0 +1,46 @@
+From 9ffaee8214b2bb9a7373a8c25f1ccc47d586c4ae Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 10:25:25 +0530
+Subject: [PATCH 277/334] [6558] slimbus: core: rearrange slim_eaddr structure
+
+Rearrange struct slim_eaddr so that the structure is packed correctly
+to be able to send in SLIMBus messages.
+
+https://github.com/torvalds/linux/commit/db455d66b9900a8a81fe474f11c78c8c8a95eefa#diff-d14c32a3a87f7c556ecefea03572c6e7
+
+Change-Id: I5d6e03645410e72554cf906f441e08aaf5a16dc2
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ include/linux/slimbus.h | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/slimbus.h b/include/linux/slimbus.h
+index 145affcb6437..12c9719b2a55 100644
+--- a/include/linux/slimbus.h
++++ b/include/linux/slimbus.h
+@@ -14,16 +14,16 @@ extern struct bus_type slimbus_bus;
+ 
+ /**
+  * struct slim_eaddr - Enumeration address for a SLIMbus device
+- * @manf_id: Manufacturer Id for the device
+- * @prod_code: Product code
+- * @dev_index: Device index
+  * @instance: Instance value
++ * @dev_index: Device index
++ * @prod_code: Product code
++ * @manf_id: Manufacturer Id for the device
+  */
+ struct slim_eaddr {
+-	u16 manf_id;
+-	u16 prod_code;
+-	u8 dev_index;
+ 	u8 instance;
++	u8 dev_index;
++	u16 prod_code;
++	u16 manf_id;
+ } __packed;
+ 
+ /**
+-- 
+2.24.1
+

@@ -1,0 +1,82 @@
+From 117af1bceb9ed1902ace343178bb1e371aa465cc Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:24:57 +0000
+Subject: [PATCH 187/334] ASoC: soc-compress: convert to SPDX identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/compress_driver.h | 21 +++------------------
+ sound/soc/soc-compress.c        | 24 +++++++++---------------
+ 2 files changed, 12 insertions(+), 33 deletions(-)
+
+diff --git a/include/sound/compress_driver.h b/include/sound/compress_driver.h
+index 9924bc9cbc7c..ea8c93bbb0e0 100644
+--- a/include/sound/compress_driver.h
++++ b/include/sound/compress_driver.h
+@@ -1,27 +1,12 @@
+-/*
++/* SPDX-License-Identifier: GPL-2.0
++ *
+  *  compress_driver.h - compress offload driver definations
+  *
+  *  Copyright (C) 2011 Intel Corporation
+  *  Authors:	Vinod Koul <vinod.koul@linux.intel.com>
+  *		Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com>
+- *  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- *
+- *  This program is free software; you can redistribute it and/or modify
+- *  it under the terms of the GNU General Public License as published by
+- *  the Free Software Foundation; version 2 of the License.
+- *
+- *  This program is distributed in the hope that it will be useful, but
+- *  WITHOUT ANY WARRANTY; without even the implied warranty of
+- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- *  General Public License for more details.
+- *
+- *  You should have received a copy of the GNU General Public License along
+- *  with this program; if not, write to the Free Software Foundation, Inc.,
+- *  59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
+- *
+- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- *
+  */
++
+ #ifndef __COMPRESS_DRIVER_H
+ #define __COMPRESS_DRIVER_H
+ 
+diff --git a/sound/soc/soc-compress.c b/sound/soc/soc-compress.c
+index e095115fa9f9..b9e1673fea51 100644
+--- a/sound/soc/soc-compress.c
++++ b/sound/soc/soc-compress.c
+@@ -1,18 +1,12 @@
+-/*
+- * soc-compress.c  --  ALSA SoC Compress
+- *
+- * Copyright (C) 2012 Intel Corp.
+- *
+- * Authors: Namarta Kohli <namartax.kohli@intel.com>
+- *          Ramesh Babu K V <ramesh.babu@linux.intel.com>
+- *          Vinod Koul <vinod.koul@linux.intel.com>
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- *
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++// soc-compress.c  --  ALSA SoC Compress
++//
++// Copyright (C) 2012 Intel Corp.
++//
++// Authors: Namarta Kohli <namartax.kohli@intel.com>
++//          Ramesh Babu K V <ramesh.babu@linux.intel.com>
++//          Vinod Koul <vinod.koul@linux.intel.com>
+ 
+ #include <linux/kernel.h>
+ #include <linux/init.h>
+-- 
+2.24.1
+

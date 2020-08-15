@@ -1,0 +1,31 @@
+From 3ca7f8053e632f12097fc7534b89ffeb33a1a144 Mon Sep 17 00:00:00 2001
+From: Charles Keepax <ckeepax@opensource.cirrus.com>
+Date: Thu, 26 Apr 2018 17:30:04 +0100
+Subject: [PATCH 157/334] ASoC: compress: Only assign compr->ops->copy once
+
+There are only one set of ops on the compressed stream so no need to
+reassign the copy callback repeatedly, stop after copy is seen to be
+necessary.
+
+Signed-off-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+Acked-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-compress.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sound/soc/soc-compress.c b/sound/soc/soc-compress.c
+index ba56f87f96d4..62875c6a93a1 100644
+--- a/sound/soc/soc-compress.c
++++ b/sound/soc/soc-compress.c
+@@ -973,6 +973,7 @@ int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
+ 			continue;
+ 
+ 		compr->ops->copy = soc_compr_copy;
++		break;
+ 	}
+ 
+ 
+-- 
+2.24.1
+

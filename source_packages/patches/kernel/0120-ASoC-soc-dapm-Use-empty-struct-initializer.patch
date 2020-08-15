@@ -1,0 +1,42 @@
+From 6807611f2ca82eb356fb0b0d24d853627a16cdfd Mon Sep 17 00:00:00 2001
+From: Fabio Estevam <fabio.estevam@nxp.com>
+Date: Wed, 14 Feb 2018 13:39:05 -0200
+Subject: [PATCH 120/334] ASoC: soc-dapm: Use empty struct initializer
+
+{ NULL } only clears the first member of the structure.
+
+Even though the first member of the snd_soc_dapm_update struct is a
+pointer,it is more robust to use the empty struct initializer that
+clears all the struct members.
+
+Signed-off-by: Fabio Estevam <fabio.estevam@nxp.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-dapm.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-dapm.c b/sound/soc/soc-dapm.c
+index 5384ce0a100e..0d0609ea8bdf 100644
+--- a/sound/soc/soc-dapm.c
++++ b/sound/soc/soc-dapm.c
+@@ -3167,7 +3167,7 @@ int snd_soc_dapm_put_volsw(struct snd_kcontrol *kcontrol,
+ 	unsigned int invert = mc->invert;
+ 	unsigned int val, rval = 0;
+ 	int connect, rconnect = -1, change, reg_change = 0;
+-	struct snd_soc_dapm_update update = { NULL };
++	struct snd_soc_dapm_update update = {};
+ 	int ret = 0;
+ 
+ 	val = (ucontrol->value.integer.value[0] & mask);
+@@ -3294,7 +3294,7 @@ int snd_soc_dapm_put_enum_double(struct snd_kcontrol *kcontrol,
+ 	unsigned int *item = ucontrol->value.enumerated.item;
+ 	unsigned int val, change, reg_change = 0;
+ 	unsigned int mask;
+-	struct snd_soc_dapm_update update = { NULL };
++	struct snd_soc_dapm_update update = {};
+ 	int ret = 0;
+ 
+ 	if (item[0] >= e->items)
+-- 
+2.24.1
+

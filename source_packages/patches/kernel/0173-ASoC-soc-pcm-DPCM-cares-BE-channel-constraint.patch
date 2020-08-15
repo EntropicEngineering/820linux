@@ -1,0 +1,105 @@
+From a52c837b110394ec7412f56a21bb16fdc9724587 Mon Sep 17 00:00:00 2001
+From: Jiada Wang <jiada_wang@mentor.com>
+Date: Wed, 20 Jun 2018 18:25:20 +0900
+Subject: [PATCH 173/334] ASoC: soc-pcm: DPCM cares BE channel constraint
+
+Current DPCM is caring only FE channel configuration. Sometimes
+it will be trouble if user selects channel which isn't supported
+by BE.
+
+This patch adds new .dpcm_merged_chan on struct snd_soc_dai_link.
+DPCM will use FE / BE merged channel if struct snd_soc_dai_link
+has it.
+
+Signed-off-by: Jiada Wang <jiada_wang@mentor.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h |  2 ++
+ sound/soc/soc-pcm.c | 46 +++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 48 insertions(+)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index 21861f366dcb..a19aeac728db 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -955,6 +955,8 @@ struct snd_soc_dai_link {
+ 
+ 	/* DPCM used FE & BE merged format */
+ 	unsigned int dpcm_merged_format:1;
++	/* DPCM used FE & BE merged channel */
++	unsigned int dpcm_merged_chan:1;
+ 
+ 	/* pmdown_time is ignored at stop */
+ 	unsigned int ignore_pmdown_time:1;
+diff --git a/sound/soc/soc-pcm.c b/sound/soc/soc-pcm.c
+index 45b52f7b9690..19ebfc958b9d 100644
+--- a/sound/soc/soc-pcm.c
++++ b/sound/soc/soc-pcm.c
+@@ -1715,6 +1715,46 @@ static u64 dpcm_runtime_base_format(struct snd_pcm_substream *substream)
+ 	return formats;
+ }
+ 
++static void dpcm_runtime_base_chan(struct snd_pcm_substream *substream,
++				   unsigned int *channels_min,
++				   unsigned int *channels_max)
++{
++	struct snd_soc_pcm_runtime *fe = substream->private_data;
++	struct snd_soc_dpcm *dpcm;
++	int stream = substream->stream;
++
++	if (!fe->dai_link->dpcm_merged_chan)
++		return;
++
++	*channels_min = 0;
++	*channels_max = UINT_MAX;
++
++	/*
++	 * It returns merged BE codec channel;
++	 * if FE want to use it (= dpcm_merged_chan)
++	 */
++
++	list_for_each_entry(dpcm, &fe->dpcm[stream].be_clients, list_be) {
++		struct snd_soc_pcm_runtime *be = dpcm->be;
++		struct snd_soc_dai_driver *codec_dai_drv;
++		struct snd_soc_pcm_stream *codec_stream;
++		int i;
++
++		for (i = 0; i < be->num_codecs; i++) {
++			codec_dai_drv = be->codec_dais[i]->driver;
++			if (stream == SNDRV_PCM_STREAM_PLAYBACK)
++				codec_stream = &codec_dai_drv->playback;
++			else
++				codec_stream = &codec_dai_drv->capture;
++
++			*channels_min = max(*channels_min,
++					    codec_stream->channels_min);
++			*channels_max = min(*channels_max,
++					    codec_stream->channels_max);
++		}
++	}
++}
++
+ static void dpcm_set_fe_runtime(struct snd_pcm_substream *substream)
+ {
+ 	struct snd_pcm_runtime *runtime = substream->runtime;
+@@ -1722,11 +1762,17 @@ static void dpcm_set_fe_runtime(struct snd_pcm_substream *substream)
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+ 	struct snd_soc_dai_driver *cpu_dai_drv = cpu_dai->driver;
+ 	u64 format = dpcm_runtime_base_format(substream);
++	unsigned int channels_min = 0, channels_max = UINT_MAX;
+ 
+ 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+ 		dpcm_init_runtime_hw(runtime, &cpu_dai_drv->playback, format);
+ 	else
+ 		dpcm_init_runtime_hw(runtime, &cpu_dai_drv->capture, format);
++
++	dpcm_runtime_base_chan(substream, &channels_min, &channels_max);
++
++	runtime->hw.channels_min = max(channels_min, runtime->hw.channels_min);
++	runtime->hw.channels_max = min(channels_max, runtime->hw.channels_max);
+ }
+ 
+ static int dpcm_fe_dai_do_trigger(struct snd_pcm_substream *substream, int cmd);
+-- 
+2.24.1
+

@@ -1,0 +1,31 @@
+From 9187a044b99d2f8ea621c3bc850ae7ff3ed07c3d Mon Sep 17 00:00:00 2001
+From: Wei Yongjun <weiyongjun1@huawei.com>
+Date: Tue, 2 Jan 2018 17:54:23 +0000
+Subject: [PATCH 229/334] slimbus: Fix missing unlock on error in
+ slim_msg_response()
+
+Add the missing unlock before return from function slim_msg_response()
+in the error handling case.
+
+Signed-off-by: Wei Yongjun <weiyongjun1@huawei.com>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/messaging.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index a9a6dc4af0da..884419c37e84 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -38,6 +38,7 @@ void slim_msg_response(struct slim_controller *ctrl, u8 *reply, u8 tid, u8 len)
+ 	if (msg == NULL || msg->rbuf == NULL) {
+ 		dev_err(ctrl->dev, "Got response to invalid TID:%d, len:%d\n",
+ 				tid, len);
++		spin_unlock_irqrestore(&ctrl->txn_lock, flags);
+ 		return;
+ 	}
+ 
+-- 
+2.24.1
+

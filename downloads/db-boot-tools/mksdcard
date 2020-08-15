@@ -1,0 +1,271 @@
+#!/bin/sh
+set -e
+
+# check that we are not root!
+if [ "$(whoami)" != "root" ]; then
+    echo "ERROR: Please run as root. Exiting..."
+    exit 1
+fi
+
+trap cleanup_exit INT TERM EXIT
+
+cleanup_exit() {
+    [ -n "$partitions" ] && rm -f $partitions
+    [ -n "$gpt" ] && rm -f $gpt
+}
+
+usage() {
+    cat <<EOF
+Usage: `basename $0` [OPTIONS]
+
+Utility to create SD card
+
+ -d         enable debug traces
+ -o <file>  output file (will be destroyed if exists)
+ -p <file>  partition description file
+ -i <path>  additional include paths to use when looking for files
+ -s <size>  set output image size (in kb)
+ -g         create partitions but do not write files
+ -n         print partition scheme and exit, before creating image file
+ -x         enable shell debug mode
+ -h         display help
+EOF
+    exit 1;
+}
+
+real_size_in_kb() {
+    local size=$1
+    # handle custom size
+    case $size in
+        *G|*g)
+            size=$((${size%?}*1024*1024)) ;;
+        *M|*m)
+            size=$((${size%?}*1024)) ;;
+        *K|*k)
+            size=${size%?} ;;
+    esac
+    echo $size
+}
+
+PRINTONLY=0
+PARTONLY=0
+DEBUG=0
+INC="."
+while getopts "o:p:i:s:dxng" o; do
+    case "${o}" in
+    x|d)
+        set -x
+        DEBUG=1
+        ;;
+    n)
+        PRINTONLY=1
+        ;;
+    g)
+        PARTONLY=1
+        ;;
+    o)
+        IMG=${OPTARG}
+        ;;
+    s)
+        SIZE_IMG=$(real_size_in_kb ${OPTARG})
+        ;;
+    i)
+        INC="${INC} ${OPTARG}"
+        ;;
+    p)
+        PARTITIONS=${OPTARG}
+        ;;
+    *)
+        usage
+        ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if [ -z "$PARTITIONS" ]; then
+    echo "Please specify a partition description file"
+    echo ""
+    usage
+    exit 1
+fi
+
+if [ ! -e "$PARTITIONS" ]; then
+    echo "Cannot find partition description file: $PARTITIONS"
+    echo ""
+    usage
+    exit 1
+fi
+
+if [ -z "$IMG" ] && [ "$PRINTONLY" = "0" ] ; then
+    echo "Please specify an output file"
+    echo ""
+    usage
+    exit 1
+fi
+
+# remove comments
+partitions=`mktemp`
+gpt=`mktemp`
+grep -v '^[[:space:]]*#' $PARTITIONS > $partitions
+
+# let's compute the size of the SD card, by looking
+# at all partitions, but let's make sure the SD card
+# is at least 16MB
+SIZE_MIN=16384
+# padding
+SIZE=1024
+sector=0
+part=1
+
+# GPT Scheme:
+# --------------------------
+# | LBA 0    | MBR         |
+# --------------------------
+# | LBA 1    | GPT HEADER  |
+# --------------------------
+# | LBA 2    | PART. 1     |
+# | ....     |             |
+# | LBA 33   | PART. 32    |
+# --------------------------
+# | LBA 34   | DATA        |
+# | ....     |             |
+# | ....     |             |
+# | ....     |             |
+# | LBA -34  | LAST DATA   |
+# --------------------------
+# | LBA -33  | PART. 1     |
+# | ....     |             |
+# | LBA -2   | PART. 32    |
+# --------------------------
+# | LBA -1   | GPT HEADER  |
+# --------------------------
+while IFS=, read name size align type format file; do
+    full_path_file=
+    if [ -z "$size" ] ; then continue; fi
+    size=$(real_size_in_kb $size)
+
+    # if $file start with '-', don't fail if missing
+    optionalfile=0
+    if [ "${file#-}"x != "${file}x" ] ; then
+        optionalfile=1
+        file=${file#-}
+    fi
+
+    echo "=== Entry: name: $name, size: $size, align: $align, type: $type, format: $format, file: $file"
+
+    # align partition start
+    if [ -n "$align" ]; then
+        align=$(( $align * 2))
+        sector=$(( (($sector+$align-1) / $align) * $align ))
+    fi
+    start=$sector
+    sector=$(($sector + $size*2))
+
+    if [ -z "$name" ] ; then continue; fi
+
+    # make sure we don't overlap with GPT primary header
+    if [ $start -lt 34 ]; then
+        start=34
+        sector=$(($sector+$start))
+    fi
+
+    if [ "$PARTONLY" != "1" ] && [ -n "$file" ] ; then
+        for i in ${INC}; do
+            if [ -e "$i/$file" ]; then
+                full_path_file=`readlink -f $i/$file`
+                break
+            fi
+        done
+
+        if [ -z "$full_path_file" ]; then
+            if [ "$optionalfile" = 0 ]; then
+                echo "Error: Unable to find file $file in $INC"
+                exit 1
+            else
+                echo "Warning: Unable to find file $file in $INC"
+                full_path_file=
+            fi
+        fi
+    fi
+
+    echo "$part,$start,$(($sector-1)),$name,$size,$align,$type,$format,$full_path_file" >> $gpt
+    part=$(($part+1))
+
+    # size=0 is valid for the last partition only (grow)
+    if [ "$size" = 0 ]; then break; fi
+
+done < $partitions
+
+SIZE=$(($sector/2 + $SIZE))
+if [ $SIZE -lt $SIZE_MIN ]; then
+    SIZE=$SIZE_MIN
+fi
+
+if [ -n "$SIZE_IMG" ] ; then
+    if [ $SIZE -lt $SIZE_IMG ]; then
+        SIZE=$SIZE_IMG
+    elif [ $SIZE -gt $SIZE_IMG ]; then
+        echo "Error: cannot create partition table using $PARTITIONS"
+        echo "Expected size is $SIZE, however image size is set to $SIZE_IMG"
+        exit
+    fi
+fi
+
+echo "=== Create file with size (kb): $SIZE"
+
+if [ "$PRINTONLY" = "1" ] ;then
+    cat $gpt
+    exit
+fi
+
+# the output can be:
+#  * a file in which case we need to create an image
+#  * a block device in which case we directly work on the physical device
+#    and it's safer to zap all GPT data first
+if [ -b "$IMG" ]; then
+    echo "=== Destroy GPT data on block device: $IMG"
+    sgdisk -Z $IMG
+else
+    echo "=== Create image file: $IMG"
+    rm -f $IMG
+    dd if=/dev/zero of=$IMG bs=1024 count=1 seek=$(($SIZE-1))
+fi
+
+# create partition table and write files
+while IFS=, read part start end name size align type format file; do
+    echo "=== Create part: name:$name, size:$size, type:$type, align:$align, format:$format, file:$file"
+    # grow last partition until end of disk
+    # but do no overlap with backup GPT
+    if [ "$size" = 0 ]; then end=$(($SIZE*2-34)); fi
+    CMD="-a 1 -n $part:$start:$end -c $part:$name"
+
+    if [ -n "$type" ]; then
+        CMD="$CMD -t $part:$type"
+    fi
+
+    sgdisk $CMD $IMG
+
+    # create partition only, do not write file
+    if [ "$PARTONLY" = "1" ] ; then continue; fi
+
+    # no file to write
+    if [ -z "$file" ] ; then continue; fi
+
+    # push the blob
+    DPATH=$(losetup --show -f $IMG -o $(($start * 512)) --sizelimit $(( ($end-$start+1) * 512)))
+    echo "=== Writing $file to $name: ${DPATH} ... "
+    case "$format" in
+        fastboot)
+            simg2img $file ${DPATH}
+            ;;
+        *)
+            dd if=$file of=${DPATH}
+            ;;
+    esac
+    losetup -d ${DPATH}
+
+done < $gpt
+
+if [ "$DEBUG" = "1" ] ;then
+    gdisk -l $IMG
+fi

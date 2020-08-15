@@ -1,0 +1,483 @@
+From 3b012be3f7239394b73b9faa86d9222b8e2babc0 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 10:01:58 +0530
+Subject: [PATCH 274/334] [6558] treewide: kzalloc() -> kcalloc()
+
+The kzalloc() function has a 2-factor argument form, kcalloc(). This
+patch replaces cases of:
+
+        kzalloc(a * b, gfp)
+
+with:
+        kcalloc(a * b, gfp)
+
+as well as handling cases of:
+
+        kzalloc(a * b * c, gfp)
+
+with:
+
+        kzalloc(array3_size(a, b, c), gfp)
+
+as it's slightly less ugly than:
+
+        kzalloc_array(array_size(a, b), c, gfp)
+
+This does, however, attempt to ignore constant size factors like:
+
+        kzalloc(4 * 1024, gfp)
+
+though any constants defined via macros get caught up in the conversion.
+
+Any factors with a sizeof() of "unsigned char", "char", and "u8" were
+dropped, since they're redundant.
+
+The Coccinelle script used for this was:
+
+// Fix redundant parens around sizeof().
+@@
+type TYPE;
+expression THING, E;
+@@
+
+(
+  kzalloc(
+-	(sizeof(TYPE)) * E
++	sizeof(TYPE) * E
+  , ...)
+|
+  kzalloc(
+-	(sizeof(THING)) * E
++	sizeof(THING) * E
+  , ...)
+)
+
+// Drop single-byte sizes and redundant parens.
+@@
+expression COUNT;
+typedef u8;
+typedef __u8;
+@@
+
+(
+  kzalloc(
+-	sizeof(u8) * (COUNT)
++	COUNT
+  , ...)
+|
+  kzalloc(
+-	sizeof(__u8) * (COUNT)
++	COUNT
+  , ...)
+|
+  kzalloc(
+-	sizeof(char) * (COUNT)
++	COUNT
+  , ...)
+|
+  kzalloc(
+-	sizeof(unsigned char) * (COUNT)
++	COUNT
+  , ...)
+|
+  kzalloc(
+-	sizeof(u8) * COUNT
++	COUNT
+  , ...)
+|
+  kzalloc(
+-	sizeof(__u8) * COUNT
++	COUNT
+  , ...)
+|
+  kzalloc(
+-	sizeof(char) * COUNT
++	COUNT
+  , ...)
+|
+  kzalloc(
+-	sizeof(unsigned char) * COUNT
++	COUNT
+  , ...)
+)
+
+// 2-factor product with sizeof(type/expression) and identifier or constant.
+@@
+type TYPE;
+expression THING;
+identifier COUNT_ID;
+constant COUNT_CONST;
+@@
+
+(
+- kzalloc
++ kcalloc
+  (
+-	sizeof(TYPE) * (COUNT_ID)
++	COUNT_ID, sizeof(TYPE)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(TYPE) * COUNT_ID
++	COUNT_ID, sizeof(TYPE)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(TYPE) * (COUNT_CONST)
++	COUNT_CONST, sizeof(TYPE)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(TYPE) * COUNT_CONST
++	COUNT_CONST, sizeof(TYPE)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(THING) * (COUNT_ID)
++	COUNT_ID, sizeof(THING)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(THING) * COUNT_ID
++	COUNT_ID, sizeof(THING)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(THING) * (COUNT_CONST)
++	COUNT_CONST, sizeof(THING)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(THING) * COUNT_CONST
++	COUNT_CONST, sizeof(THING)
+  , ...)
+)
+
+// 2-factor product, only identifiers.
+@@
+identifier SIZE, COUNT;
+@@
+
+- kzalloc
++ kcalloc
+  (
+-	SIZE * COUNT
++	COUNT, SIZE
+  , ...)
+
+// 3-factor product with 1 sizeof(type) or sizeof(expression), with
+// redundant parens removed.
+@@
+expression THING;
+identifier STRIDE, COUNT;
+type TYPE;
+@@
+
+(
+  kzalloc(
+-	sizeof(TYPE) * (COUNT) * (STRIDE)
++	array3_size(COUNT, STRIDE, sizeof(TYPE))
+  , ...)
+|
+  kzalloc(
+-	sizeof(TYPE) * (COUNT) * STRIDE
++	array3_size(COUNT, STRIDE, sizeof(TYPE))
+  , ...)
+|
+  kzalloc(
+-	sizeof(TYPE) * COUNT * (STRIDE)
++	array3_size(COUNT, STRIDE, sizeof(TYPE))
+  , ...)
+|
+  kzalloc(
+-	sizeof(TYPE) * COUNT * STRIDE
++	array3_size(COUNT, STRIDE, sizeof(TYPE))
+  , ...)
+|
+  kzalloc(
+-	sizeof(THING) * (COUNT) * (STRIDE)
++	array3_size(COUNT, STRIDE, sizeof(THING))
+  , ...)
+|
+  kzalloc(
+-	sizeof(THING) * (COUNT) * STRIDE
++	array3_size(COUNT, STRIDE, sizeof(THING))
+  , ...)
+|
+  kzalloc(
+-	sizeof(THING) * COUNT * (STRIDE)
++	array3_size(COUNT, STRIDE, sizeof(THING))
+  , ...)
+|
+  kzalloc(
+-	sizeof(THING) * COUNT * STRIDE
++	array3_size(COUNT, STRIDE, sizeof(THING))
+  , ...)
+)
+
+// 3-factor product with 2 sizeof(variable), with redundant parens removed.
+@@
+expression THING1, THING2;
+identifier COUNT;
+type TYPE1, TYPE2;
+@@
+
+(
+  kzalloc(
+-	sizeof(TYPE1) * sizeof(TYPE2) * COUNT
++	array3_size(COUNT, sizeof(TYPE1), sizeof(TYPE2))
+  , ...)
+|
+  kzalloc(
+-	sizeof(TYPE1) * sizeof(THING2) * (COUNT)
++	array3_size(COUNT, sizeof(TYPE1), sizeof(TYPE2))
+  , ...)
+|
+  kzalloc(
+-	sizeof(THING1) * sizeof(THING2) * COUNT
++	array3_size(COUNT, sizeof(THING1), sizeof(THING2))
+  , ...)
+|
+  kzalloc(
+-	sizeof(THING1) * sizeof(THING2) * (COUNT)
++	array3_size(COUNT, sizeof(THING1), sizeof(THING2))
+  , ...)
+|
+  kzalloc(
+-	sizeof(TYPE1) * sizeof(THING2) * COUNT
++	array3_size(COUNT, sizeof(TYPE1), sizeof(THING2))
+  , ...)
+|
+  kzalloc(
+-	sizeof(TYPE1) * sizeof(THING2) * (COUNT)
++	array3_size(COUNT, sizeof(TYPE1), sizeof(THING2))
+  , ...)
+)
+
+// 3-factor product, only identifiers, with redundant parens removed.
+@@
+identifier STRIDE, SIZE, COUNT;
+@@
+
+(
+  kzalloc(
+-	(COUNT) * STRIDE * SIZE
++	array3_size(COUNT, STRIDE, SIZE)
+  , ...)
+|
+  kzalloc(
+-	COUNT * (STRIDE) * SIZE
++	array3_size(COUNT, STRIDE, SIZE)
+  , ...)
+|
+  kzalloc(
+-	COUNT * STRIDE * (SIZE)
++	array3_size(COUNT, STRIDE, SIZE)
+  , ...)
+|
+  kzalloc(
+-	(COUNT) * (STRIDE) * SIZE
++	array3_size(COUNT, STRIDE, SIZE)
+  , ...)
+|
+  kzalloc(
+-	COUNT * (STRIDE) * (SIZE)
++	array3_size(COUNT, STRIDE, SIZE)
+  , ...)
+|
+  kzalloc(
+-	(COUNT) * STRIDE * (SIZE)
++	array3_size(COUNT, STRIDE, SIZE)
+  , ...)
+|
+  kzalloc(
+-	(COUNT) * (STRIDE) * (SIZE)
++	array3_size(COUNT, STRIDE, SIZE)
+  , ...)
+|
+  kzalloc(
+-	COUNT * STRIDE * SIZE
++	array3_size(COUNT, STRIDE, SIZE)
+  , ...)
+)
+
+// Any remaining multi-factor products, first at least 3-factor products,
+// when they're not all constants...
+@@
+expression E1, E2, E3;
+constant C1, C2, C3;
+@@
+
+(
+  kzalloc(C1 * C2 * C3, ...)
+|
+  kzalloc(
+-	(E1) * E2 * E3
++	array3_size(E1, E2, E3)
+  , ...)
+|
+  kzalloc(
+-	(E1) * (E2) * E3
++	array3_size(E1, E2, E3)
+  , ...)
+|
+  kzalloc(
+-	(E1) * (E2) * (E3)
++	array3_size(E1, E2, E3)
+  , ...)
+|
+  kzalloc(
+-	E1 * E2 * E3
++	array3_size(E1, E2, E3)
+  , ...)
+)
+
+// And then all remaining 2 factors products when they're not all constants,
+// keeping sizeof() as the second factor argument.
+@@
+expression THING, E1, E2;
+type TYPE;
+constant C1, C2, C3;
+@@
+
+(
+  kzalloc(sizeof(THING) * C2, ...)
+|
+  kzalloc(sizeof(TYPE) * C2, ...)
+|
+  kzalloc(C1 * C2 * C3, ...)
+|
+  kzalloc(C1 * C2, ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(TYPE) * (E2)
++	E2, sizeof(TYPE)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(TYPE) * E2
++	E2, sizeof(TYPE)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(THING) * (E2)
++	E2, sizeof(THING)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	sizeof(THING) * E2
++	E2, sizeof(THING)
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	(E1) * E2
++	E1, E2
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	(E1) * (E2)
++	E1, E2
+  , ...)
+|
+- kzalloc
++ kcalloc
+  (
+-	E1 * E2
++	E1, E2
+  , ...)
+)
+
+https://github.com/torvalds/linux/commit/6396bb221514d2876fd6dc0aa2a1f240d99b37bb#diff-91c3d829c59669d3ef105b6e01e38563
+
+Change-Id: If8a83aa4017c3e5a3e215e39949b32a3a0209b23
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ drivers/slimbus/qcom-ctrl.c | 2 +-
+ sound/soc/soc-core.c        | 4 ++--
+ sound/soc/soc-dapm.c        | 2 +-
+ sound/soc/soc-topology.c    | 2 +-
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/slimbus/qcom-ctrl.c b/drivers/slimbus/qcom-ctrl.c
+index bb36a8fbc9b1..db1f5135846a 100644
+--- a/drivers/slimbus/qcom-ctrl.c
++++ b/drivers/slimbus/qcom-ctrl.c
+@@ -540,7 +540,7 @@ static int qcom_slim_probe(struct platform_device *pdev)
+ 	ctrl->tx.sl_sz = SLIM_MSGQ_BUF_LEN;
+ 	ctrl->rx.n = QCOM_RX_MSGS;
+ 	ctrl->rx.sl_sz = SLIM_MSGQ_BUF_LEN;
+-	ctrl->wr_comp = kzalloc(sizeof(struct completion *) * QCOM_TX_MSGS,
++	ctrl->wr_comp = kcalloc(QCOM_TX_MSGS, sizeof(struct completion *),
+ 				GFP_KERNEL);
+ 	if (!ctrl->wr_comp)
+ 		return -ENOMEM;
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 0e1f94d310ed..0acc9fdb2e02 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -392,8 +392,8 @@ static struct snd_soc_pcm_runtime *soc_new_pcm_runtime(
+ 	if (!rtd->dai_link->ops)
+ 		rtd->dai_link->ops = &null_snd_soc_ops;
+ 
+-	rtd->codec_dais = kzalloc(sizeof(struct snd_soc_dai *) *
+-					dai_link->num_codecs,
++	rtd->codec_dais = kcalloc(dai_link->num_codecs,
++				  sizeof(struct snd_soc_dai *),
+ 					GFP_KERNEL);
+ 	if (!rtd->codec_dais) {
+ 		kfree(rtd);
+diff --git a/sound/soc/soc-dapm.c b/sound/soc/soc-dapm.c
+index b37ad8d1749e..33d1d729ca2b 100644
+--- a/sound/soc/soc-dapm.c
++++ b/sound/soc/soc-dapm.c
+@@ -3049,7 +3049,7 @@ int snd_soc_dapm_new_widgets(struct snd_soc_card *card)
+ 			continue;
+ 
+ 		if (w->num_kcontrols) {
+-			w->kcontrols = kzalloc(w->num_kcontrols *
++			w->kcontrols = kcalloc(w->num_kcontrols,
+ 						sizeof(struct snd_kcontrol *),
+ 						GFP_KERNEL);
+ 			if (!w->kcontrols) {
+diff --git a/sound/soc/soc-topology.c b/sound/soc/soc-topology.c
+index a42c85292407..5857f4798255 100644
+--- a/sound/soc/soc-topology.c
++++ b/sound/soc/soc-topology.c
+@@ -880,7 +880,7 @@ static int soc_tplg_denum_create_texts(struct soc_enum *se,
+ 	int i, ret;
+ 
+ 	se->dobj.control.dtexts =
+-		kzalloc(sizeof(char *) * ec->items, GFP_KERNEL);
++		kcalloc(ec->items, sizeof(char *), GFP_KERNEL);
+ 	if (se->dobj.control.dtexts == NULL)
+ 		return -ENOMEM;
+ 
+-- 
+2.24.1
+

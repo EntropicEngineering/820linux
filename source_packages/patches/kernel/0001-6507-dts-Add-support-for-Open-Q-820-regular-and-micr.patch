@@ -1,0 +1,187 @@
+From 249facafea91e22b17c743a216e4f2b8962b5527 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Wed, 8 Aug 2018 12:19:51 +0530
+Subject: [PATCH 001/334] [6507] dts: Add support for Open-Q 820 regular and
+ micro SOM
+
+Change-Id: I779c24039bdd5fb0ec553c2af452fd19108de026
+---
+ arch/arm64/boot/dts/qcom/Makefile             |  2 +
+ .../boot/dts/qcom/apq8096-openq-micro820.dts  | 23 ++++++++++
+ .../boot/dts/qcom/apq8096-openq-micro820.dtsi | 14 ++++++
+ .../dts/qcom/apq8096-openq-regular820.dts     | 23 ++++++++++
+ .../dts/qcom/apq8096-openq-regular820.dtsi    | 46 +++++++++++++++++++
+ arch/arm64/boot/dts/qcom/apq8096-openq.dtsi   | 14 ++++++
+ 6 files changed, 122 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/apq8096-openq-micro820.dts
+ create mode 100644 arch/arm64/boot/dts/qcom/apq8096-openq-micro820.dtsi
+ create mode 100644 arch/arm64/boot/dts/qcom/apq8096-openq-regular820.dts
+ create mode 100644 arch/arm64/boot/dts/qcom/apq8096-openq-regular820.dtsi
+ create mode 100644 arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+index e7b25bee3f1e..e4e522be4f61 100644
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -6,6 +6,8 @@ dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-mtp.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8992-bullhead-rev-101.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8994-angler-rev-101.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= msm8996-mtp.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= apq8096-openq-regular820.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= apq8096-openq-micro820.dtb
+ 
+ always		:= $(dtb-y)
+ subdir-y	:= $(dts-dirs)
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-openq-micro820.dts b/arch/arm64/boot/dts/qcom/apq8096-openq-micro820.dts
+new file mode 100644
+index 000000000000..568306497ef7
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/apq8096-openq-micro820.dts
+@@ -0,0 +1,23 @@
++/*
++ * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++/dts-v1/;
++
++#include "apq8096-openq-micro820.dtsi"
++
++/ {
++	model = "Qualcomm Technologies, Inc. Open-Q 820 microsom";
++	compatible = "qcom,apq8096";
++	qcom,msm-id = <291 0x30001>;
++	qcom,board-id = <10 28>;
++};
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-openq-micro820.dtsi b/arch/arm64/boot/dts/qcom/apq8096-openq-micro820.dtsi
+new file mode 100644
+index 000000000000..27e6586cfc91
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/apq8096-openq-micro820.dtsi
+@@ -0,0 +1,14 @@
++
++/*
++ * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#include "apq8096-openq.dtsi"
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-openq-regular820.dts b/arch/arm64/boot/dts/qcom/apq8096-openq-regular820.dts
+new file mode 100644
+index 000000000000..501209d16692
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/apq8096-openq-regular820.dts
+@@ -0,0 +1,23 @@
++/*
++ * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++/dts-v1/;
++
++#include "apq8096-openq-regular820.dtsi"
++
++/ {
++	model = "Qualcomm Technologies, Inc. Open-Q 820 regularsom";
++	compatible = "qcom,apq8096";
++	qcom,msm-id = <291 0x30001>;
++	qcom,board-id = <10 0>;
++};
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-openq-regular820.dtsi b/arch/arm64/boot/dts/qcom/apq8096-openq-regular820.dtsi
+new file mode 100644
+index 000000000000..4eaae27c1180
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/apq8096-openq-regular820.dtsi
+@@ -0,0 +1,46 @@
++/*
++ * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#include "apq8096-openq.dtsi"
++
++&msmgpio {
++	sdc2_cd_on: sdc2_cd_on {
++		mux {
++			pins = "gpio95";
++			function = "gpio";
++		};
++
++		config {
++			pins = "gpio95";
++			bias-pull-up;		/* pull up */
++			drive-strength = <16>;	/* 16 MA */
++		};
++	};
++
++	sdc2_cd_off: sdc2_cd_off {
++		mux {
++			pins = "gpio95";
++			function = "gpio";
++		};
++
++		config {
++			pins = "gpio95";
++			bias-pull-up;		/* pull up */
++			drive-strength = <2>;	/* 2 MA */
++		};
++	};
++
++};
++
++&{/soc/sdhci@74a4900} {
++	cd-gpios = <&msmgpio 95 0x1>;
++};
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi b/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+new file mode 100644
+index 000000000000..3548b0011a6b
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+@@ -0,0 +1,14 @@
++
++/*
++ * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 and
++ * only version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#include "apq8096-db820c.dtsi"
+-- 
+2.24.1
+

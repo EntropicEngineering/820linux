@@ -1,0 +1,587 @@
+From f3e0e39b43e8ae7491e6f0b069f3c5227e81db80 Mon Sep 17 00:00:00 2001
+From: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+Date: Tue, 27 Mar 2018 14:30:42 +0100
+Subject: [PATCH 140/334] ASoC: topology: Give more data to clients via
+ callbacks
+
+Give topology clients more access to the topology data by passing index,
+pcm, link_config and dai_driver to clients. This allows clients to fully
+instantiate and track topology objects.
+
+The SOF driver is the first user of these new APIs and needs them to build
+component topology driver and FW objects.
+
+Signed-off-by: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+
+Conflicts:
+	sound/soc/intel/skylake/skl-pcm.c
+	sound/soc/intel/skylake/skl-topology.h
+---
+ include/sound/soc-topology.h           |  23 ++--
+ sound/soc/intel/skylake/skl-pcm.c      | 156 ++++++++++++++++++-------
+ sound/soc/intel/skylake/skl-topology.c |   5 +-
+ sound/soc/intel/skylake/skl-topology.h |  11 +-
+ sound/soc/soc-topology.c               |  31 ++---
+ 5 files changed, 159 insertions(+), 67 deletions(-)
+
+diff --git a/include/sound/soc-topology.h b/include/sound/soc-topology.h
+index f552c3f56368..e1f265e21ee1 100644
+--- a/include/sound/soc-topology.h
++++ b/include/sound/soc-topology.h
+@@ -30,6 +30,8 @@ struct snd_soc_dapm_context;
+ struct snd_soc_card;
+ struct snd_kcontrol_new;
+ struct snd_soc_dai_link;
++struct snd_soc_dai_driver;
++struct snd_soc_dai;
+ 
+ /* object scan be loaded and unloaded in groups with identfying indexes */
+ #define SND_SOC_TPLG_INDEX_ALL	0	/* ID that matches all FW objects */
+@@ -109,35 +111,38 @@ struct snd_soc_tplg_widget_events {
+ struct snd_soc_tplg_ops {
+ 
+ 	/* external kcontrol init - used for any driver specific init */
+-	int (*control_load)(struct snd_soc_component *,
++	int (*control_load)(struct snd_soc_component *, int index,
+ 		struct snd_kcontrol_new *, struct snd_soc_tplg_ctl_hdr *);
+ 	int (*control_unload)(struct snd_soc_component *,
+ 		struct snd_soc_dobj *);
+ 
+ 	/* external widget init - used for any driver specific init */
+-	int (*widget_load)(struct snd_soc_component *,
++	int (*widget_load)(struct snd_soc_component *, int index,
+ 		struct snd_soc_dapm_widget *,
+ 		struct snd_soc_tplg_dapm_widget *);
+-	int (*widget_ready)(struct snd_soc_component *,
++	int (*widget_ready)(struct snd_soc_component *, int index,
+ 		struct snd_soc_dapm_widget *,
+ 		struct snd_soc_tplg_dapm_widget *);
+ 	int (*widget_unload)(struct snd_soc_component *,
+ 		struct snd_soc_dobj *);
+ 
+ 	/* FE DAI - used for any driver specific init */
+-	int (*dai_load)(struct snd_soc_component *,
+-		struct snd_soc_dai_driver *dai_drv);
++	int (*dai_load)(struct snd_soc_component *, int index,
++		struct snd_soc_dai_driver *dai_drv,
++		struct snd_soc_tplg_pcm *pcm, struct snd_soc_dai *dai);
++
+ 	int (*dai_unload)(struct snd_soc_component *,
+ 		struct snd_soc_dobj *);
+ 
+ 	/* DAI link - used for any driver specific init */
+-	int (*link_load)(struct snd_soc_component *,
+-		struct snd_soc_dai_link *link);
++	int (*link_load)(struct snd_soc_component *, int index,
++		struct snd_soc_dai_link *link,
++		struct snd_soc_tplg_link_config *cfg);
+ 	int (*link_unload)(struct snd_soc_component *,
+ 		struct snd_soc_dobj *);
+ 
+ 	/* callback to handle vendor bespoke data */
+-	int (*vendor_load)(struct snd_soc_component *,
++	int (*vendor_load)(struct snd_soc_component *, int index,
+ 		struct snd_soc_tplg_hdr *);
+ 	int (*vendor_unload)(struct snd_soc_component *,
+ 		struct snd_soc_tplg_hdr *);
+@@ -146,7 +151,7 @@ struct snd_soc_tplg_ops {
+ 	void (*complete)(struct snd_soc_component *);
+ 
+ 	/* manifest - optional to inform component of manifest */
+-	int (*manifest)(struct snd_soc_component *,
++	int (*manifest)(struct snd_soc_component *, int index,
+ 		struct snd_soc_tplg_manifest *);
+ 
+ 	/* vendor specific kcontrol handlers available for binding */
+diff --git a/sound/soc/intel/skylake/skl-pcm.c b/sound/soc/intel/skylake/skl-pcm.c
+index 7fe1e8f273a0..1f4dd08d36c5 100644
+--- a/sound/soc/intel/skylake/skl-pcm.c
++++ b/sound/soc/intel/skylake/skl-pcm.c
+@@ -268,15 +268,31 @@ static int skl_pcm_prepare(struct snd_pcm_substream *substream,
+ {
+ 	struct skl *skl = get_skl_ctx(dai->dev);
+ 	struct skl_module_cfg *mconfig;
++	int ret;
+ 
+ 	dev_dbg(dai->dev, "%s: %s\n", __func__, dai->name);
+ 
+ 	mconfig = skl_tplg_fe_get_cpr_module(dai, substream->stream);
+ 
+-	/* In case of XRUN recovery, reset the FW pipe to clean state */
+-	if (mconfig && (substream->runtime->status->state ==
+-					SNDRV_PCM_STATE_XRUN))
+-		skl_reset_pipe(skl->skl_sst, mconfig->pipe);
++	/*
++	 * In case of XRUN recovery or in the case when the application
++	 * calls prepare another time, reset the FW pipe to clean state
++	 */
++	if (mconfig &&
++		(substream->runtime->status->state == SNDRV_PCM_STATE_XRUN ||
++		 mconfig->pipe->state == SKL_PIPE_CREATED ||
++		 mconfig->pipe->state == SKL_PIPE_PAUSED)) {
++
++		ret = skl_reset_pipe(skl->skl_sst, mconfig->pipe);
++
++		if (ret < 0)
++			return ret;
++
++		ret = skl_pcm_host_dma_prepare(dai->dev,
++					mconfig->pipe->p_params);
++		if (ret < 0)
++			return ret;
++	}
+ 
+ 	return 0;
+ }
+@@ -355,7 +371,8 @@ static void skl_pcm_close(struct snd_pcm_substream *substream,
+ 	}
+ 
+ 	mconfig = skl_tplg_fe_get_cpr_module(dai, substream->stream);
+-	skl_tplg_d0i3_put(skl, mconfig->d0i3_caps);
++	if (mconfig)
++		skl_tplg_d0i3_put(skl, mconfig->d0i3_caps);
+ 
+ 	kfree(dma_params);
+ }
+@@ -365,9 +382,21 @@ static int skl_pcm_hw_free(struct snd_pcm_substream *substream,
+ {
+ 	struct hdac_ext_bus *ebus = dev_get_drvdata(dai->dev);
+ 	struct hdac_ext_stream *stream = get_hdac_ext_stream(substream);
++	struct skl *skl = get_skl_ctx(dai->dev);
++	struct skl_module_cfg *mconfig;
++	int ret;
+ 
+ 	dev_dbg(dai->dev, "%s: %s\n", __func__, dai->name);
+ 
++	mconfig = skl_tplg_fe_get_cpr_module(dai, substream->stream);
++
++	if (mconfig) {
++		ret = skl_reset_pipe(skl->skl_sst, mconfig->pipe);
++		if (ret < 0)
++			dev_err(dai->dev, "%s:Reset failed ret =%d",
++						__func__, ret);
++	}
++
+ 	snd_hdac_stream_cleanup(hdac_stream(stream));
+ 	hdac_stream(stream)->prepared = 0;
+ 
+@@ -536,7 +565,7 @@ static int skl_link_hw_params(struct snd_pcm_substream *substream,
+ 
+ 	snd_soc_dai_set_dma_data(dai, substream, (void *)link_dev);
+ 
+-	link = snd_hdac_ext_bus_get_link(ebus, rtd->codec->component.name);
++	link = snd_hdac_ext_bus_get_link(ebus, codec_dai->component->name);
+ 	if (!link)
+ 		return -EINVAL;
+ 
+@@ -619,7 +648,7 @@ static int skl_link_hw_free(struct snd_pcm_substream *substream,
+ 
+ 	link_dev->link_prepared = 0;
+ 
+-	link = snd_hdac_ext_bus_get_link(ebus, rtd->codec->component.name);
++	link = snd_hdac_ext_bus_get_link(ebus, rtd->codec_dai->component->name);
+ 	if (!link)
+ 		return -EINVAL;
+ 
+@@ -652,7 +681,7 @@ static const struct snd_soc_dai_ops skl_link_dai_ops = {
+ 	.trigger = skl_link_pcm_trigger,
+ };
+ 
+-static struct snd_soc_dai_driver skl_platform_dai[] = {
++static struct snd_soc_dai_driver skl_fe_dai[] = {
+ {
+ 	.name = "System Pin",
+ 	.ops = &skl_pcm_dai_ops,
+@@ -796,8 +825,10 @@ static struct snd_soc_dai_driver skl_platform_dai[] = {
+ 		.sig_bits = 32,
+ 	},
+ },
++};
+ 
+ /* BE CPU  Dais */
++static struct snd_soc_dai_driver skl_platform_dai[] = {
+ {
+ 	.name = "SSP0 Pin",
+ 	.ops = &skl_be_ssp_dai_ops,
+@@ -955,6 +986,17 @@ static struct snd_soc_dai_driver skl_platform_dai[] = {
+ 		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE,
+ 	},
+ },
++{
++	.name = "DMIC16k Pin",
++	.ops = &skl_dmic_dai_ops,
++	.capture = {
++		.stream_name = "DMIC16k Rx",
++		.channels_min = HDA_MONO,
++		.channels_max = HDA_QUAD,
++		.rates = SNDRV_PCM_RATE_16000,
++		.formats = SNDRV_PCM_FMTBIT_S16_LE,
++	},
++},
+ {
+ 	.name = "HD-Codec Pin",
+ 	.ops = &skl_link_dai_ops,
+@@ -975,6 +1017,15 @@ static struct snd_soc_dai_driver skl_platform_dai[] = {
+ },
+ };
+ 
++int skl_dai_load(struct snd_soc_component *cmp, int index,
++			struct snd_soc_dai_driver *dai_drv,
++			struct snd_soc_tplg_pcm *pcm, struct snd_soc_dai *dai)
++{
++	dai_drv->ops = &skl_pcm_dai_ops;
++
++	return 0;
++}
++
+ static int skl_platform_open(struct snd_pcm_substream *substream)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+@@ -1296,29 +1347,31 @@ static int skl_populate_modules(struct skl *skl)
+ 					"query module info failed\n");
+ 				return ret;
+ 			}
++
++			skl_tplg_add_moduleid_in_bind_params(skl, w);
+ 		}
+ 	}
+ 
+ 	return ret;
+ }
+ 
+-static int skl_platform_soc_probe(struct snd_soc_platform *platform)
++static int skl_platform_soc_probe(struct snd_soc_component *component)
+ {
+-	struct hdac_ext_bus *ebus = dev_get_drvdata(platform->dev);
++	struct hdac_ext_bus *ebus = dev_get_drvdata(component->dev);
+ 	struct skl *skl = ebus_to_skl(ebus);
+ 	const struct skl_dsp_ops *ops;
+ 	int ret;
+ 
+-	pm_runtime_get_sync(platform->dev);
++	pm_runtime_get_sync(component->dev);
+ 	if ((ebus_to_hbus(ebus))->ppcap) {
+-		skl->platform = platform;
++		skl->component = component;
+ 
+ 		/* init debugfs */
+ 		skl->debugfs = skl_debugfs_init(skl);
+ 
+-		ret = skl_tplg_init(platform, ebus);
++		ret = skl_tplg_init(component, ebus);
+ 		if (ret < 0) {
+-			dev_err(platform->dev, "Failed to init topology!\n");
++			dev_err(component->dev, "Failed to init topology!\n");
+ 			return ret;
+ 		}
+ 
+@@ -1328,63 +1381,86 @@ static int skl_platform_soc_probe(struct snd_soc_platform *platform)
+ 			return -EIO;
+ 
+ 		if (skl->skl_sst->is_first_boot == false) {
+-			dev_err(platform->dev, "DSP reports first boot done!!!\n");
++			dev_err(component->dev, "DSP reports first boot done!!!\n");
+ 			return -EIO;
+ 		}
+ 
+-		/* disable dynamic clock gating during fw and lib download */
+-		skl->skl_sst->enable_miscbdcge(platform->dev, false);
++		/*
++		 * Disable dynamic clock and power gating during firmware
++		 * and library download
++		 */
++		skl->skl_sst->enable_miscbdcge(component->dev, false);
++		skl->skl_sst->clock_power_gating(component->dev, false);
+ 
+-		ret = ops->init_fw(platform->dev, skl->skl_sst);
+-		skl->skl_sst->enable_miscbdcge(platform->dev, true);
++		ret = ops->init_fw(component->dev, skl->skl_sst);
++		skl->skl_sst->enable_miscbdcge(component->dev, true);
++		skl->skl_sst->clock_power_gating(component->dev, true);
+ 		if (ret < 0) {
+-			dev_err(platform->dev, "Failed to boot first fw: %d\n", ret);
++			dev_err(component->dev, "Failed to boot first fw: %d\n", ret);
+ 			return ret;
+ 		}
+ 		skl_populate_modules(skl);
+ 		skl->skl_sst->update_d0i3c = skl_update_d0i3c;
+ 		skl_dsp_enable_notification(skl->skl_sst, false);
++
++		if (skl->cfg.astate_cfg != NULL) {
++			skl_dsp_set_astate_cfg(skl->skl_sst,
++					skl->cfg.astate_cfg->count,
++					skl->cfg.astate_cfg);
++		}
+ 	}
+-	pm_runtime_mark_last_busy(platform->dev);
+-	pm_runtime_put_autosuspend(platform->dev);
++	pm_runtime_mark_last_busy(component->dev);
++	pm_runtime_put_autosuspend(component->dev);
+ 
+ 	return 0;
+ }
+-static const struct snd_soc_platform_driver skl_platform_drv  = {
++
++static const struct snd_soc_component_driver skl_component  = {
++	.name		= "pcm",
+ 	.probe		= skl_platform_soc_probe,
+ 	.ops		= &skl_platform_ops,
+ 	.pcm_new	= skl_pcm_new,
+ 	.pcm_free	= skl_pcm_free,
+ };
+ 
+-static const struct snd_soc_component_driver skl_component = {
+-	.name           = "pcm",
+-};
+-
+ int skl_platform_register(struct device *dev)
+ {
+ 	int ret;
+ 	struct hdac_ext_bus *ebus = dev_get_drvdata(dev);
+ 	struct skl *skl = ebus_to_skl(ebus);
++	struct snd_soc_dai_driver *dais;
++	int num_dais = ARRAY_SIZE(skl_platform_dai);
+ 
+ 	INIT_LIST_HEAD(&skl->ppl_list);
+ 	INIT_LIST_HEAD(&skl->bind_list);
+ 
+-	ret = snd_soc_register_platform(dev, &skl_platform_drv);
+-	if (ret) {
+-		dev_err(dev, "soc platform registration failed %d\n", ret);
+-		return ret;
++	skl->dais = kmemdup(skl_platform_dai, sizeof(skl_platform_dai),
++			    GFP_KERNEL);
++	if (!skl->dais) {
++		ret = -ENOMEM;
++		goto err;
+ 	}
+-	ret = snd_soc_register_component(dev, &skl_component,
+-				skl_platform_dai,
+-				ARRAY_SIZE(skl_platform_dai));
+-	if (ret) {
+-		dev_err(dev, "soc component registration failed %d\n", ret);
+-		snd_soc_unregister_platform(dev);
++
++	if (!skl->use_tplg_pcm) {
++		dais = krealloc(skl->dais, sizeof(skl_fe_dai) +
++				sizeof(skl_platform_dai), GFP_KERNEL);
++		if (!dais) {
++			ret = -ENOMEM;
++			goto err;
++		}
++
++		skl->dais = dais;
++		memcpy(&skl->dais[ARRAY_SIZE(skl_platform_dai)], skl_fe_dai,
++		       sizeof(skl_fe_dai));
++		num_dais += ARRAY_SIZE(skl_fe_dai);
+ 	}
+ 
++	ret = devm_snd_soc_register_component(dev, &skl_component,
++					 skl->dais, num_dais);
++	if (ret)
++		dev_err(dev, "soc component registration failed %d\n", ret);
++err:
+ 	return ret;
+-
+ }
+ 
+ int skl_platform_unregister(struct device *dev)
+@@ -1400,7 +1476,7 @@ int skl_platform_unregister(struct device *dev)
+ 		}
+ 	}
+ 
+-	snd_soc_unregister_component(dev);
+-	snd_soc_unregister_platform(dev);
++	kfree(skl->dais);
++
+ 	return 0;
+ }
+diff --git a/sound/soc/intel/skylake/skl-topology.c b/sound/soc/intel/skylake/skl-topology.c
+index 22f768ca3c73..489864cba4d1 100644
+--- a/sound/soc/intel/skylake/skl-topology.c
++++ b/sound/soc/intel/skylake/skl-topology.c
+@@ -2748,7 +2748,7 @@ void skl_cleanup_resources(struct skl *skl)
+  * information to the driver about module and pipeline parameters which DSP
+  * FW expects like ids, resource values, formats etc
+  */
+-static int skl_tplg_widget_load(struct snd_soc_component *cmpnt,
++static int skl_tplg_widget_load(struct snd_soc_component *cmpnt, int index,
+ 				struct snd_soc_dapm_widget *w,
+ 				struct snd_soc_tplg_dapm_widget *tplg_w)
+ {
+@@ -2855,6 +2855,7 @@ static int skl_init_enum_data(struct device *dev, struct soc_enum *se,
+ }
+ 
+ static int skl_tplg_control_load(struct snd_soc_component *cmpnt,
++				int index,
+ 				struct snd_kcontrol_new *kctl,
+ 				struct snd_soc_tplg_ctl_hdr *hdr)
+ {
+@@ -3301,7 +3302,7 @@ static int skl_tplg_get_manifest_data(struct snd_soc_tplg_manifest *manifest,
+ 	return 0;
+ }
+ 
+-static int skl_manifest_load(struct snd_soc_component *cmpnt,
++static int skl_manifest_load(struct snd_soc_component *cmpnt, int index,
+ 				struct snd_soc_tplg_manifest *manifest)
+ {
+ 	struct hdac_ext_bus *ebus = snd_soc_component_get_drvdata(cmpnt);
+diff --git a/sound/soc/intel/skylake/skl-topology.h b/sound/soc/intel/skylake/skl-topology.h
+index 2717db92036b..77857c598eed 100644
+--- a/sound/soc/intel/skylake/skl-topology.h
++++ b/sound/soc/intel/skylake/skl-topology.h
+@@ -34,7 +34,7 @@
+ #define MAX_FIXED_DMIC_PARAMS_SIZE 727
+ 
+ /* Maximum number of coefficients up down mixer module */
+-#define UP_DOWN_MIXER_MAX_COEFF		6
++#define UP_DOWN_MIXER_MAX_COEFF		8
+ 
+ #define MODULE_MAX_IN_PINS	8
+ #define MODULE_MAX_OUT_PINS	8
+@@ -161,6 +161,7 @@ struct skl_up_down_mixer_cfg {
+ 	u32 coeff_sel;
+ 	/* Pass the user coeff in this array */
+ 	s32 coeff[UP_DOWN_MIXER_MAX_COEFF];
++	u32 ch_map;
+ } __packed;
+ 
+ struct skl_algo_cfg {
+@@ -455,8 +456,8 @@ static inline struct skl *get_skl_ctx(struct device *dev)
+ 
+ int skl_tplg_be_update_params(struct snd_soc_dai *dai,
+ 	struct skl_pipe_params *params);
+-int skl_dsp_set_dma_control(struct skl_sst *ctx,
+-		struct skl_module_cfg *mconfig);
++int skl_dsp_set_dma_control(struct skl_sst *ctx, u32 *caps,
++			u32 caps_size, u32 node_id);
+ void skl_tplg_set_be_dmic_config(struct snd_soc_dai *dai,
+ 	struct skl_pipe_params *params, int stream);
+ int skl_tplg_init(struct snd_soc_platform *platform,
+@@ -501,4 +502,8 @@ int skl_pcm_host_dma_prepare(struct device *dev,
+ 			struct skl_pipe_params *params);
+ int skl_pcm_link_dma_prepare(struct device *dev,
+ 			struct skl_pipe_params *params);
++
++int skl_dai_load(struct snd_soc_component *, int index,
++		struct snd_soc_dai_driver *dai_drv,
++		struct snd_soc_tplg_pcm *pcm, struct snd_soc_dai *dai);
+ #endif
+diff --git a/sound/soc/soc-topology.c b/sound/soc/soc-topology.c
+index 26c8e6ce9a7d..43674db08965 100644
+--- a/sound/soc/soc-topology.c
++++ b/sound/soc/soc-topology.c
+@@ -315,7 +315,7 @@ static int soc_tplg_vendor_load_(struct soc_tplg *tplg,
+ 	int ret = 0;
+ 
+ 	if (tplg->comp && tplg->ops && tplg->ops->vendor_load)
+-		ret = tplg->ops->vendor_load(tplg->comp, hdr);
++		ret = tplg->ops->vendor_load(tplg->comp, tplg->index, hdr);
+ 	else {
+ 		dev_err(tplg->dev, "ASoC: no vendor load callback for ID %d\n",
+ 			hdr->vendor_type);
+@@ -347,7 +347,8 @@ static int soc_tplg_widget_load(struct soc_tplg *tplg,
+ 	struct snd_soc_dapm_widget *w, struct snd_soc_tplg_dapm_widget *tplg_w)
+ {
+ 	if (tplg->comp && tplg->ops && tplg->ops->widget_load)
+-		return tplg->ops->widget_load(tplg->comp, w, tplg_w);
++		return tplg->ops->widget_load(tplg->comp, tplg->index, w,
++			tplg_w);
+ 
+ 	return 0;
+ }
+@@ -358,27 +359,30 @@ static int soc_tplg_widget_ready(struct soc_tplg *tplg,
+ 	struct snd_soc_dapm_widget *w, struct snd_soc_tplg_dapm_widget *tplg_w)
+ {
+ 	if (tplg->comp && tplg->ops && tplg->ops->widget_ready)
+-		return tplg->ops->widget_ready(tplg->comp, w, tplg_w);
++		return tplg->ops->widget_ready(tplg->comp, tplg->index, w,
++			tplg_w);
+ 
+ 	return 0;
+ }
+ 
+ /* pass DAI configurations to component driver for extra initialization */
+ static int soc_tplg_dai_load(struct soc_tplg *tplg,
+-	struct snd_soc_dai_driver *dai_drv)
++	struct snd_soc_dai_driver *dai_drv,
++	struct snd_soc_tplg_pcm *pcm, struct snd_soc_dai *dai)
+ {
+ 	if (tplg->comp && tplg->ops && tplg->ops->dai_load)
+-		return tplg->ops->dai_load(tplg->comp, dai_drv);
++		return tplg->ops->dai_load(tplg->comp, tplg->index, dai_drv,
++			pcm, dai);
+ 
+ 	return 0;
+ }
+ 
+ /* pass link configurations to component driver for extra initialization */
+ static int soc_tplg_dai_link_load(struct soc_tplg *tplg,
+-	struct snd_soc_dai_link *link)
++	struct snd_soc_dai_link *link, struct snd_soc_tplg_link_config *cfg)
+ {
+ 	if (tplg->comp && tplg->ops && tplg->ops->link_load)
+-		return tplg->ops->link_load(tplg->comp, link);
++		return tplg->ops->link_load(tplg->comp, tplg->index, link, cfg);
+ 
+ 	return 0;
+ }
+@@ -699,7 +703,8 @@ static int soc_tplg_init_kcontrol(struct soc_tplg *tplg,
+ 	struct snd_kcontrol_new *k, struct snd_soc_tplg_ctl_hdr *hdr)
+ {
+ 	if (tplg->comp && tplg->ops && tplg->ops->control_load)
+-		return tplg->ops->control_load(tplg->comp, k, hdr);
++		return tplg->ops->control_load(tplg->comp, tplg->index, k,
++			hdr);
+ 
+ 	return 0;
+ }
+@@ -1755,7 +1760,7 @@ static int soc_tplg_dai_create(struct soc_tplg *tplg,
+ 	}
+ 
+ 	/* pass control to component driver for optional further init */
+-	ret = soc_tplg_dai_load(tplg, dai_drv);
++	ret = soc_tplg_dai_load(tplg, dai_drv, pcm, NULL);
+ 	if (ret < 0) {
+ 		dev_err(tplg->comp->dev, "ASoC: DAI loading failed\n");
+ 		kfree(dai_drv);
+@@ -1825,7 +1830,7 @@ static int soc_tplg_fe_link_create(struct soc_tplg *tplg,
+ 		set_link_flags(link, pcm->flag_mask, pcm->flags);
+ 
+ 	/* pass control to component driver for optional further init */
+-	ret = soc_tplg_dai_link_load(tplg, link);
++	ret = soc_tplg_dai_link_load(tplg, link, NULL);
+ 	if (ret < 0) {
+ 		dev_err(tplg->comp->dev, "ASoC: FE link loading failed\n");
+ 		kfree(link);
+@@ -2133,7 +2138,7 @@ static int soc_tplg_link_config(struct soc_tplg *tplg,
+ 		set_link_flags(link, cfg->flag_mask, cfg->flags);
+ 
+ 	/* pass control to component driver for optional further init */
+-	ret = soc_tplg_dai_link_load(tplg, link);
++	ret = soc_tplg_dai_link_load(tplg, link, cfg);
+ 	if (ret < 0) {
+ 		dev_err(tplg->dev, "ASoC: physical link loading failed\n");
+ 		return ret;
+@@ -2255,7 +2260,7 @@ static int soc_tplg_dai_config(struct soc_tplg *tplg,
+ 		set_dai_flags(dai_drv, d->flag_mask, d->flags);
+ 
+ 	/* pass control to component driver for optional further init */
+-	ret = soc_tplg_dai_load(tplg, dai_drv);
++	ret = soc_tplg_dai_load(tplg, dai_drv, NULL, dai);
+ 	if (ret < 0) {
+ 		dev_err(tplg->comp->dev, "ASoC: DAI loading failed\n");
+ 		return ret;
+@@ -2361,7 +2366,7 @@ static int soc_tplg_manifest_load(struct soc_tplg *tplg,
+ 
+ 	/* pass control to component driver for optional further init */
+ 	if (tplg->comp && tplg->ops && tplg->ops->manifest)
+-		return tplg->ops->manifest(tplg->comp, _manifest);
++		return tplg->ops->manifest(tplg->comp, tplg->index, _manifest);
+ 
+ 	if (!abi_match)	/* free the duplicated one */
+ 		kfree(_manifest);
+-- 
+2.24.1
+

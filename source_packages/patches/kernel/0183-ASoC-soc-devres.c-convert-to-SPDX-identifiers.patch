@@ -1,0 +1,37 @@
+From 9281d6a6387b61570e82a28de6e8104ce99a0973 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:23:45 +0000
+Subject: [PATCH 183/334] ASoC: soc-devres.c: convert to SPDX identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-devres.c | 15 +++++----------
+ 1 file changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/sound/soc/soc-devres.c b/sound/soc/soc-devres.c
+index 7ac745df1412..a9ea172a66a7 100644
+--- a/sound/soc/soc-devres.c
++++ b/sound/soc/soc-devres.c
+@@ -1,13 +1,8 @@
+-/*
+- * soc-devres.c  --  ALSA SoC Audio Layer devres functions
+- *
+- * Copyright (C) 2013 Linaro Ltd
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++// soc-devres.c  --  ALSA SoC Audio Layer devres functions
++//
++// Copyright (C) 2013 Linaro Ltd
+ 
+ #include <linux/module.h>
+ #include <linux/moduleparam.h>
+-- 
+2.24.1
+

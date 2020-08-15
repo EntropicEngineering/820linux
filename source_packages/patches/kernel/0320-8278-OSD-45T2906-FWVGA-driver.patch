@@ -1,0 +1,634 @@
+From 2d9703cfff3db31b424bd109eda045e67203aeb1 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Fri, 11 Jan 2019 18:52:48 +0530
+Subject: [PATCH 320/334] [8278] OSD 45T2906 FWVGA driver
+
+Change-Id: I764d11831f912cd444a32d9a6919cc99608e0676
+(cherry picked from commit 6e4a507a3a4c2799a5acf464e60360ff1c52a3ba)
+---
+ drivers/gpu/drm/panel/Kconfig             |   9 +
+ drivers/gpu/drm/panel/Makefile            |   1 +
+ drivers/gpu/drm/panel/panel-osd-45t2906.c | 584 ++++++++++++++++++++++
+ 3 files changed, 594 insertions(+)
+ create mode 100644 drivers/gpu/drm/panel/panel-osd-45t2906.c
+
+diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
+index d84a031fae24..baec5484b9ab 100644
+--- a/drivers/gpu/drm/panel/Kconfig
++++ b/drivers/gpu/drm/panel/Kconfig
+@@ -117,4 +117,13 @@ config DRM_PANEL_SITRONIX_ST7789V
+ 	  Say Y here if you want to enable support for the Sitronix
+ 	  ST7789V controller for 240x320 LCD panels
+ 
++config DRM_PANEL_OSD_45T2906
++	tristate "OSD 45T2906 FWVGA panel"
++	depends on OF
++	depends on DRM_MIPI_DSI
++	depends on BACKLIGHT_CLASS_DEVICE
++	help
++	  Say Y here if you want to enable support for OSD 45T2906 FWVGA
++	  (480x854) DSI panel
++
+ endmenu
+diff --git a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
+index d73d3e661cec..e1f8262eaa71 100644
+--- a/drivers/gpu/drm/panel/Makefile
++++ b/drivers/gpu/drm/panel/Makefile
+@@ -11,3 +11,4 @@ obj-$(CONFIG_DRM_PANEL_SAMSUNG_S6E8AA0) += panel-samsung-s6e8aa0.o
+ obj-$(CONFIG_DRM_PANEL_SHARP_LQ101R1SX01) += panel-sharp-lq101r1sx01.o
+ obj-$(CONFIG_DRM_PANEL_SHARP_LS043T1LE01) += panel-sharp-ls043t1le01.o
+ obj-$(CONFIG_DRM_PANEL_SITRONIX_ST7789V) += panel-sitronix-st7789v.o
++obj-$(CONFIG_DRM_PANEL_OSD_45T2906) += panel-osd-45t2906.o
+diff --git a/drivers/gpu/drm/panel/panel-osd-45t2906.c b/drivers/gpu/drm/panel/panel-osd-45t2906.c
+new file mode 100644
+index 000000000000..67e67edc83f3
+--- /dev/null
++++ b/drivers/gpu/drm/panel/panel-osd-45t2906.c
+@@ -0,0 +1,584 @@
++#include <linux/backlight.h>
++#include <linux/gpio/consumer.h>
++#include <linux/module.h>
++#include <linux/of_platform.h>
++#include <linux/platform_device.h>
++#include <linux/regulator/consumer.h>
++
++#include <drm/drmP.h>
++#include <drm/drm_crtc.h>
++#include <drm/drm_mipi_dsi.h>
++#include <drm/drm_panel.h>
++
++#include <video/display_timing.h>
++#include <video/videomode.h>
++#include <video/mipi_display.h>
++
++// Manufacturer Command set pages
++static char osd_panel_video_on_cmd00[] = {
++	0xBF, 0x91, 0x61, 0xF2,
++};
++
++static char osd_panel_video_on_cmd01[] = {
++	0xB3, 0x00, 0x9B,
++};
++
++static char osd_panel_video_on_cmd02[] = {
++	0xB4, 0x00, 0x9B,
++};
++
++static char osd_panel_video_on_cmd03[] = {
++	0xC3, 0x04,
++};
++
++static char osd_panel_video_on_cmd04[] = {
++	0xB8, 0x00, 0x6F, 0x01,
++	0x00, 0x6F, 0x01,
++};
++
++static char osd_panel_video_on_cmd05[] = {
++	0xBA, 0x34, 0x23, 0x00,
++};
++
++static char osd_panel_video_on_cmd06[] = {
++	0xC4, 0x30, 0x6A,
++};
++
++static char osd_panel_video_on_cmd07[] = {
++	0xC7, 0x00, 0x01, 0x32,
++	0x05, 0x65, 0x2A, 0x12,
++	0xA5, 0xA5,
++};
++
++static char osd_panel_video_on_cmd08[] = {
++	0xC8, 0x7F, 0x6A, 0x5A,
++	0x4E, 0x49, 0x39, 0x3B,
++	0x23, 0x37, 0x32, 0x2F,
++	0x49, 0x35, 0x3B, 0x31,
++	0x2B, 0x1E, 0x0F, 0x00,
++	0x7F, 0x6A, 0x5A, 0x4E,
++	0x49, 0x39, 0x3B, 0x23,
++	0x37, 0x32, 0x2F, 0x49,
++	0x35, 0x3B, 0x31, 0x2B,
++	0x1E, 0x0F, 0x00,
++};
++
++static char osd_panel_video_on_cmd09[] = {
++	0xD4, 0x1E, 0x1F, 0x1F,
++	0x1F, 0x06, 0x04, 0x0A,
++	0x08, 0x00, 0x02, 0x1F,
++	0x1F, 0x1F, 0x1F, 0x1F,
++	0x1F,
++};
++
++static char osd_panel_video_on_cmd10[] = {
++	0xD5, 0x1E, 0x1F, 0x1F,
++	0x1F, 0x07, 0x05, 0x0B,
++	0x09, 0x01, 0x03, 0x1F,
++	0x1F, 0x1F, 0x1F, 0x1F,
++        0x1F,
++};
++
++static char osd_panel_video_on_cmd11[] = {
++	0xD6, 0x1F, 0x1E, 0x1F,
++	0x1F, 0x07, 0x05, 0x0B,
++	0x05, 0x03, 0x01, 0x1F,
++	0x1F, 0x1F, 0x1F, 0x1F,
++	0x1F,
++};
++
++static char osd_panel_video_on_cmd12[] = {
++	0xD7, 0x1F, 0x1E, 0x1F,
++	0x1F, 0x06, 0x08, 0x0A,
++	0x04, 0x02, 0x00, 0x1F,
++	0x1F, 0x1F, 0x1F, 0x1F,
++	0x1F,
++};
++
++static char osd_panel_video_on_cmd13[] = {
++	0xD8, 0x20, 0x00, 0x00,
++	0x30, 0x08, 0x20, 0x01,
++	0x02, 0x00, 0x01, 0x02,
++	0x06, 0x7B, 0x00, 0x00,
++	0x72, 0x0A, 0x0E, 0x49,
++	0x08,
++};
++
++static char osd_panel_video_on_cmd14[] = {
++	0xD9, 0x00, 0x0A, 0x0A,
++	0x89, 0x00, 0x00, 0x06,
++	0x7B, 0x00, 0x00, 0x00,
++	0x3B, 0x33, 0x1F, 0x00,
++	0x00, 0x00, 0x03, 0x7B,
++};
++
++static char osd_panel_tear_on[] = { MIPI_DCS_SET_TEAR_ON, 0x00 };
++
++static char osd_panel_video_on_cmd15[] = {
++	0xBE, 0x01,
++};
++
++static char osd_panel_video_on_cmd16[] = {
++	0xC1, 0x10,
++};
++
++static char osd_panel_video_on_cmd17[] = {
++	0xCC, 0x34, 0x20, 0x38,
++	0x60, 0x11, 0x91, 0x00,
++	0x40, 0x00, 0x00,
++};
++
++static char osd_panel_video_on_cmd18[] = {
++	0xBE, 0x00,
++};
++
++static struct mipi_dsi_cmd {
++	size_t size;
++	char *payload;
++	int wait;
++} osd_panel_video_on_command[] = {
++	{sizeof(osd_panel_video_on_cmd00), osd_panel_video_on_cmd00, 1},
++	{sizeof(osd_panel_video_on_cmd01), osd_panel_video_on_cmd01, 1},
++	{sizeof(osd_panel_video_on_cmd02), osd_panel_video_on_cmd02, 1},
++	{sizeof(osd_panel_video_on_cmd03), osd_panel_video_on_cmd03, 1},
++	{sizeof(osd_panel_video_on_cmd04), osd_panel_video_on_cmd04, 1},
++	{sizeof(osd_panel_video_on_cmd05), osd_panel_video_on_cmd05, 1},
++	{sizeof(osd_panel_video_on_cmd06), osd_panel_video_on_cmd06, 1},
++	{sizeof(osd_panel_video_on_cmd07), osd_panel_video_on_cmd07, 1},
++	{sizeof(osd_panel_video_on_cmd08), osd_panel_video_on_cmd08, 1},
++	{sizeof(osd_panel_video_on_cmd09), osd_panel_video_on_cmd09, 1},
++	{sizeof(osd_panel_video_on_cmd10), osd_panel_video_on_cmd10, 1},
++	{sizeof(osd_panel_video_on_cmd11), osd_panel_video_on_cmd11, 1},
++	{sizeof(osd_panel_video_on_cmd12), osd_panel_video_on_cmd12, 1},
++	{sizeof(osd_panel_video_on_cmd13), osd_panel_video_on_cmd13, 1},
++	{sizeof(osd_panel_video_on_cmd14), osd_panel_video_on_cmd14, 1},
++	{sizeof(osd_panel_tear_on),		  osd_panel_tear_on, 1},
++	{sizeof(osd_panel_video_on_cmd15), osd_panel_video_on_cmd15, 1},
++	{sizeof(osd_panel_video_on_cmd16), osd_panel_video_on_cmd16, 1},
++	{sizeof(osd_panel_video_on_cmd17), osd_panel_video_on_cmd17, 1},
++	{sizeof(osd_panel_video_on_cmd18), osd_panel_video_on_cmd18, 1},
++};
++
++struct osd_panel {
++	struct drm_panel base;
++	struct mipi_dsi_device *dsi;
++	struct regulator *supply;
++
++	struct gpio_desc *reset_gpio;
++	struct gpio_desc *backlight_gpio;
++	struct gpio_desc *pwm_gpio;
++	struct gpio_desc *te_gpio;
++	struct backlight_device *backlight;
++	bool prepared;
++	bool enabled;
++
++	u32 width_mm;
++	u32 height_mm;
++
++	const struct drm_display_mode *mode;
++};
++
++static inline struct osd_panel *to_osd_panel(struct drm_panel *panel)
++{
++	return container_of(panel, struct osd_panel, base);
++}
++
++static int osd_panel_push_cmd_list(struct mipi_dsi_device *dsi)
++{
++	size_t count = sizeof(osd_panel_video_on_command) / sizeof(struct mipi_dsi_cmd);
++	struct mipi_dsi_cmd *cmd;
++	int ret = 0, i;
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	for (i = 0; i < count; i++) {
++		cmd = &(osd_panel_video_on_command[i]);
++		ret = mipi_dsi_dcs_write_buffer(dsi, cmd->payload, cmd->size);
++		if (ret < 0)
++			break;
++		msleep(cmd->wait);
++	}
++	return ret;
++};
++
++static const struct drm_display_mode osd45t2906_mode = {
++	/* HS clock, (htotal * vtotal * vrefresh)/1000 */
++       .clock =  26622,
++       .hdisplay = 480,
++       .hsync_start = 480 + 10,
++       .hsync_end = 480 + 10 + 10,
++       .htotal = 480 + 10 + 10 + 10,
++       .vdisplay = 854,
++       .vsync_start = 854 + 6,
++       .vsync_end = 854 + 6 +6,
++       .vtotal = 854 + 6 + 6 + 4,
++       .vrefresh = 60,
++       .width_mm = 55,
++       .height_mm = 98,
++};
++
++static int osd_panel_get_modes(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++	struct drm_display_mode *mode;
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	mode = drm_mode_duplicate(panel->drm, &osd45t2906_mode);
++	if (!mode) {
++		DRM_DEV_ERROR(panel->drm->dev, "failed to add mode %u%ux@%u\n",
++			      osd45t2906_mode.hdisplay, osd45t2906_mode.vdisplay,
++			      osd45t2906_mode.vrefresh);
++		return -ENOMEM;
++	}
++
++	drm_mode_set_name(mode);
++
++	drm_mode_probed_add(panel->connector, mode);
++
++	panel->connector->display_info.width_mm = osd->width_mm;
++	panel->connector->display_info.height_mm = osd->height_mm;
++
++	return 1;
++}
++
++static int osd_panel_disable(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	if (!osd->enabled)
++		return 0;
++
++	if (osd->backlight) {
++		osd->backlight->props.power = FB_BLANK_POWERDOWN;
++		backlight_update_status(osd->backlight);
++	}
++
++	osd->enabled = false;
++
++	return 0;
++}
++
++static int osd_panel_enable(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	if (osd->enabled)
++		return 0;
++
++	if (osd->backlight) {
++		osd->backlight->props.power = FB_BLANK_UNBLANK;
++		backlight_update_status(osd->backlight);
++	}
++
++	osd->enabled = true;
++
++	return 0;
++}
++
++static int osd_panel_unprepare(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++	struct mipi_dsi_device *dsi = osd->dsi;
++	struct device *dev = &dsi->dev;
++	int ret;
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	if (!osd->prepared)
++		return 0;
++
++	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
++
++	ret = mipi_dsi_dcs_set_display_off(dsi);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "Failed to set display OFF (%d)\n", ret);
++
++	usleep_range(5000, 10000);
++
++	ret = mipi_dsi_dcs_enter_sleep_mode(dsi);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "Failed to enter sleep mode (%d)\n", ret);
++
++	usleep_range(10000, 15000);
++
++	ret = regulator_disable(osd->supply);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "regulator disable failed, %d\n", ret);
++
++	usleep_range(10000, 15000);
++
++	if (osd->reset_gpio != NULL) {
++		gpiod_set_value(osd->reset_gpio, 0);
++		usleep_range(10000, 15000);
++	}
++
++	if (osd->pwm_gpio != NULL) {
++		gpiod_set_value(osd->pwm_gpio, 0);
++		udelay(100);
++	};
++
++	if (osd->te_gpio != NULL) {
++		gpiod_set_value(osd->te_gpio, 0);
++		udelay(100);
++	};
++
++	if (osd->backlight_gpio != NULL) {
++		gpiod_set_value(osd->backlight_gpio, 0);
++		udelay(100);
++	};
++
++	osd->prepared = false;
++
++	return 0;
++}
++
++static int osd_panel_prepare(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++	struct mipi_dsi_device *dsi = osd->dsi;
++	struct device *dev = &dsi->dev;
++	int ret;
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	if (osd->prepared)
++		return 0;
++
++	ret = regulator_enable(osd->supply);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "regulator enable failed, %d\n", ret);
++		return ret;
++	}
++
++	if (osd->reset_gpio != NULL) {
++		gpiod_set_value(osd->reset_gpio, 1);
++		msleep(20);
++		gpiod_set_value(osd->reset_gpio, 0);
++		msleep(2);
++		gpiod_set_value(osd->reset_gpio, 1);
++		msleep(20);
++	}
++
++	if (osd->pwm_gpio != NULL) {
++		gpiod_set_value(osd->pwm_gpio, 1);
++		udelay(100);
++	};
++
++	if (osd->te_gpio != NULL) {
++		gpiod_set_value(osd->te_gpio, 1);
++		udelay(100);
++	};
++
++	if (osd->backlight_gpio != NULL) {
++		gpiod_set_value(osd->backlight_gpio, 1);
++		mdelay(5);
++	};
++
++	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
++
++	ret = osd_panel_push_cmd_list(dsi);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "Failed to send MCS (%d)\n", ret);
++		goto fail;
++	}
++
++	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "Failed to exit sleep mode (%d)\n", ret);
++		goto fail;
++	}
++
++	mdelay(240);
++
++	ret = mipi_dsi_dcs_set_display_on(dsi);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "Failed to set display ON (%d)\n", ret);
++		goto fail;
++	}
++
++	osd->prepared = true;
++
++	return 0;
++
++fail:
++	ret = regulator_disable(osd->supply);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "regulator disable failed, %d\n", ret);
++
++	if (osd->reset_gpio != NULL)
++		gpiod_set_value(osd->reset_gpio, 0);
++
++	if (osd->backlight_gpio != NULL)
++		gpiod_set_value(osd->backlight_gpio, 0);
++
++	return ret;
++}
++
++static const struct drm_panel_funcs osd_panel_funcs = {
++	.prepare = osd_panel_prepare,
++	.unprepare = osd_panel_unprepare,
++	.enable = osd_panel_enable,
++	.disable = osd_panel_disable,
++	.get_modes = osd_panel_get_modes,
++};
++
++static int osd_panel_add(struct osd_panel *panel)
++{
++	struct device *dev = &panel->dsi->dev;
++	int ret;
++
++	panel->mode = &osd45t2906_mode;
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	panel->supply = devm_regulator_get(dev, "vdd");
++	if (IS_ERR(panel->supply))
++		return PTR_ERR(panel->supply);
++
++	panel->reset_gpio = devm_gpiod_get(dev, "panel-reset", GPIOD_OUT_LOW);
++
++	if (IS_ERR(panel->reset_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot get reset-gpios %ld\n",
++			      PTR_ERR(panel->reset_gpio));
++		panel->reset_gpio = NULL;
++	}
++	else
++		gpiod_set_value(panel->reset_gpio, 0);
++
++	panel->backlight_gpio = devm_gpiod_get(dev, "backlight", GPIOD_OUT_LOW);
++
++	if (IS_ERR(panel->backlight_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot backlight-gpios %ld\n",
++			      PTR_ERR(panel->backlight_gpio));
++		panel->backlight_gpio = NULL;
++	}
++	else
++		gpiod_set_value(panel->backlight_gpio, 0);
++
++	panel->pwm_gpio = devm_gpiod_get(dev, "pwm", GPIOD_OUT_LOW);
++
++	if (IS_ERR(panel->pwm_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot pwm-gpios %ld\n",
++			      PTR_ERR(panel->pwm_gpio));
++		panel->pwm_gpio = NULL;
++	}
++	else
++		gpiod_set_value(panel->pwm_gpio, 0);
++
++	panel->te_gpio = devm_gpiod_get(dev, "te", GPIOD_OUT_LOW);
++
++	if (IS_ERR(panel->te_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot te-gpios %ld\n",
++			      PTR_ERR(panel->te_gpio));
++		panel->te_gpio = NULL;
++	}
++	else
++		gpiod_set_value(panel->te_gpio, 0);
++
++	drm_panel_init(&panel->base);
++	panel->base.funcs = &osd_panel_funcs;
++	panel->base.dev = dev;
++
++	ret = drm_panel_add(&panel->base);
++	if (ret < 0)
++		goto put_backlight;
++
++	return 0;
++
++put_backlight:
++	if (panel->backlight)
++		put_device(&panel->backlight->dev);
++
++	return ret;
++};
++
++static int osd_panel_probe(struct mipi_dsi_device *dsi)
++{
++	struct device *dev = &dsi->dev;
++	struct osd_panel *panel;
++	struct device_node *np;
++	int ret;
++
++	printk(">>>>>> %s <<<<<<<\n", __func__);
++	dsi->format = MIPI_DSI_FMT_RGB888;
++	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS;
++
++	panel = devm_kzalloc(&dsi->dev, sizeof(*panel), GFP_KERNEL);
++	if (!panel)
++		return -ENOMEM;
++
++	mipi_dsi_set_drvdata(dsi, panel);
++
++	panel->dsi = dsi;
++
++	np = dev->of_node;
++	ret = of_property_read_u32(np, "dsi-lanes", &dsi->lanes);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "Failed to get dsi-lanes property (%d)\n", ret);
++		return ret;
++	}
++
++	of_property_read_u32(np, "panel-width-mm", &panel->width_mm);
++	of_property_read_u32(np, "panel-height-mm", &panel->height_mm);
++
++	ret = osd_panel_add(panel);
++	if (ret < 0)
++		return ret;
++
++	ret = mipi_dsi_attach(dsi);
++	if (ret < 0)
++		drm_panel_remove(&panel->base);
++
++	return ret;
++};
++
++static int osd_panel_remove(struct mipi_dsi_device *dsi)
++{
++	struct osd_panel *osd = mipi_dsi_get_drvdata(dsi);
++	struct device *dev = &dsi->dev;
++	int ret;
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	ret = osd_panel_disable(&osd->base);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "Failed to disable panel (%d)\n", ret);
++
++	ret = mipi_dsi_detach(dsi);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "Failed to detach from host (%d)\n", ret);
++
++	drm_panel_detach(&osd->base);
++
++	if (osd->base.dev)
++		drm_panel_remove(&osd->base);
++
++	return 0;
++}
++
++static void osd_panel_shutdown(struct mipi_dsi_device *dsi)
++{
++	struct osd_panel *osd = mipi_dsi_get_drvdata(dsi);
++
++	printk(">>>>>>> %s <<<<<<<\n", __func__);
++	osd_panel_disable(&osd->base);
++}
++
++static const struct of_device_id osd_of_match[] = {
++	{ .compatible = "osd,45t2906", },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, osd_of_match);
++
++static struct mipi_dsi_driver osd_panel_driver = {
++	.driver = {
++		.name = "panel-osd-45t2906",
++		.of_match_table = osd_of_match,
++	},
++	.probe = osd_panel_probe,
++	.remove = osd_panel_remove,
++	.shutdown = osd_panel_shutdown,
++};
++
++module_mipi_dsi_driver(osd_panel_driver);
++
++MODULE_AUTHOR("Intrinsyc");
++MODULE_DESCRIPTION("OSD 45T2906 Panel");
++MODULE_LICENSE("GPL v2");
+-- 
+2.24.1
+

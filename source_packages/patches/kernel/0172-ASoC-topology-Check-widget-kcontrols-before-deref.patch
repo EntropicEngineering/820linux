@@ -1,0 +1,42 @@
+From 301ec661ec7b120d686dd3f89f77d584a2a0b592 Mon Sep 17 00:00:00 2001
+From: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+Date: Tue, 27 Mar 2018 14:30:44 +0100
+Subject: [PATCH 172/334] ASoC: topology: Check widget kcontrols before deref.
+
+[ Upstream commit 05bdcf12905533b8628627b6634608cd3b57c607 ]
+
+Validate the topology input before we dereference the pointer.
+
+Signed-off-by: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Sasha Levin <alexander.levin@microsoft.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ sound/soc/soc-topology.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-topology.c b/sound/soc/soc-topology.c
+index 3af0e15af7a0..3c3ff1a60cc1 100644
+--- a/sound/soc/soc-topology.c
++++ b/sound/soc/soc-topology.c
+@@ -458,7 +458,7 @@ static void remove_widget(struct snd_soc_component *comp,
+ 	 */
+ 	if (dobj->widget.kcontrol_type == SND_SOC_TPLG_TYPE_ENUM) {
+ 		/* enumerated widget mixer */
+-		for (i = 0; i < w->num_kcontrols; i++) {
++		for (i = 0; w->kcontrols != NULL && i < w->num_kcontrols; i++) {
+ 			struct snd_kcontrol *kcontrol = w->kcontrols[i];
+ 			struct soc_enum *se =
+ 				(struct soc_enum *)kcontrol->private_value;
+@@ -476,7 +476,7 @@ static void remove_widget(struct snd_soc_component *comp,
+ 		kfree(w->kcontrol_news);
+ 	} else {
+ 		/* volume mixer or bytes controls */
+-		for (i = 0; i < w->num_kcontrols; i++) {
++		for (i = 0; w->kcontrols != NULL && i < w->num_kcontrols; i++) {
+ 			struct snd_kcontrol *kcontrol = w->kcontrols[i];
+ 
+ 			if (dobj->widget.kcontrol_type
+-- 
+2.24.1
+

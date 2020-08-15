@@ -1,0 +1,87 @@
+From 2e6e44809c80c902921f9b435ae6c1b7a93d4129 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:24:31 +0000
+Subject: [PATCH 185/334] ASoC: soc-dapm: convert to SPDX identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc-dapm.h | 11 ++++-------
+ sound/soc/soc-dapm.c     | 42 +++++++++++++++++-----------------------
+ 2 files changed, 22 insertions(+), 31 deletions(-)
+
+diff --git a/include/sound/soc-dapm.h b/include/sound/soc-dapm.h
+index a6ce2de4e20a..af9ef16cc34d 100644
+--- a/include/sound/soc-dapm.h
++++ b/include/sound/soc-dapm.h
+@@ -1,13 +1,10 @@
+-/*
++/* SPDX-License-Identifier: GPL-2.0
++ *
+  * linux/sound/soc-dapm.h -- ALSA SoC Dynamic Audio Power Management
+  *
+- * Author:		Liam Girdwood
+- * Created:		Aug 11th 2005
++ * Author:	Liam Girdwood
++ * Created:	Aug 11th 2005
+  * Copyright:	Wolfson Microelectronics. PLC.
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License version 2 as
+- * published by the Free Software Foundation.
+  */
+ 
+ #ifndef __LINUX_SND_SOC_DAPM_H
+diff --git a/sound/soc/soc-dapm.c b/sound/soc/soc-dapm.c
+index bd8888138142..b37ad8d1749e 100644
+--- a/sound/soc/soc-dapm.c
++++ b/sound/soc/soc-dapm.c
+@@ -1,27 +1,21 @@
+-/*
+- * soc-dapm.c  --  ALSA SoC Dynamic Audio Power Management
+- *
+- * Copyright 2005 Wolfson Microelectronics PLC.
+- * Author: Liam Girdwood <lrg@slimlogic.co.uk>
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- *
+- *  Features:
+- *    o Changes power status of internal codec blocks depending on the
+- *      dynamic configuration of codec internal audio paths and active
+- *      DACs/ADCs.
+- *    o Platform power domain - can support external components i.e. amps and
+- *      mic/headphone insertion events.
+- *    o Automatic Mic Bias support
+- *    o Jack insertion power event initiation - e.g. hp insertion will enable
+- *      sinks, dacs, etc
+- *    o Delayed power down of audio subsystem to reduce pops between a quick
+- *      device reopen.
+- *
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++// soc-dapm.c  --  ALSA SoC Dynamic Audio Power Management
++//
++// Copyright 2005 Wolfson Microelectronics PLC.
++// Author: Liam Girdwood <lrg@slimlogic.co.uk>
++//
++//  Features:
++//    o Changes power status of internal codec blocks depending on the
++//      dynamic configuration of codec internal audio paths and active
++//      DACs/ADCs.
++//    o Platform power domain - can support external components i.e. amps and
++//      mic/headphone insertion events.
++//    o Automatic Mic Bias support
++//    o Jack insertion power event initiation - e.g. hp insertion will enable
++//      sinks, dacs, etc
++//    o Delayed power down of audio subsystem to reduce pops between a quick
++//      device reopen.
+ 
+ #include <linux/module.h>
+ #include <linux/moduleparam.h>
+-- 
+2.24.1
+

@@ -1,0 +1,74 @@
+From ec15885ac9e648ced3941fc14e7efb6effa43719 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 1 Aug 2018 10:20:51 +0100
+Subject: [PATCH 195/334] ASoC: compress: work around to reorder BE and FE
+ intialization
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ sound/soc/soc-compress.c | 42 ++++++++++++++++++++--------------------
+ 1 file changed, 21 insertions(+), 21 deletions(-)
+
+diff --git a/sound/soc/soc-compress.c b/sound/soc/soc-compress.c
+index b9e1673fea51..15c894f426ad 100644
+--- a/sound/soc/soc-compress.c
++++ b/sound/soc/soc-compress.c
+@@ -551,6 +551,27 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
+ 
+ 	mutex_lock_nested(&fe->card->mutex, SND_SOC_CARD_CLASS_RUNTIME);
+ 
++
++	/*
++	 * Create an empty hw_params for the BE as the machine driver must
++	 * fix this up to match DSP decoder and ASRC configuration.
++	 * I.e. machine driver fixup for compressed BE is mandatory.
++	 */
++	memset(&fe->dpcm[fe_substream->stream].hw_params, 0,
++		sizeof(struct snd_pcm_hw_params));
++
++	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
++
++	ret = dpcm_be_dai_hw_params(fe, stream);
++	if (ret < 0)
++		goto out;
++
++	ret = dpcm_be_dai_prepare(fe, stream);
++	if (ret < 0)
++		goto out;
++
++	dpcm_dapm_stream_event(fe, stream, SND_SOC_DAPM_STREAM_START);
++	fe->dpcm[stream].state = SND_SOC_DPCM_STATE_PREPARE;
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->set_params) {
+ 		ret = cpu_dai->driver->cops->set_params(cstream, params, cpu_dai);
+ 		if (ret < 0)
+@@ -577,27 +598,6 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
+ 			goto out;
+ 	}
+ 
+-	/*
+-	 * Create an empty hw_params for the BE as the machine driver must
+-	 * fix this up to match DSP decoder and ASRC configuration.
+-	 * I.e. machine driver fixup for compressed BE is mandatory.
+-	 */
+-	memset(&fe->dpcm[fe_substream->stream].hw_params, 0,
+-		sizeof(struct snd_pcm_hw_params));
+-
+-	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
+-
+-	ret = dpcm_be_dai_hw_params(fe, stream);
+-	if (ret < 0)
+-		goto out;
+-
+-	ret = dpcm_be_dai_prepare(fe, stream);
+-	if (ret < 0)
+-		goto out;
+-
+-	dpcm_dapm_stream_event(fe, stream, SND_SOC_DAPM_STREAM_START);
+-	fe->dpcm[stream].state = SND_SOC_DPCM_STATE_PREPARE;
+-
+ out:
+ 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_NO;
+ 	mutex_unlock(&fe->card->mutex);
+-- 
+2.24.1
+

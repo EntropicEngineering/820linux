@@ -1,0 +1,49 @@
+From 3966a6b903aebe4241bfdc8ebc101607a99c36fe Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Tue, 8 May 2018 03:22:11 +0000
+Subject: [PATCH 155/334] ASoC: soc-core: remove
+ snd_soc_component_add_unlocked()
+
+There is no user to call snd_soc_component_add_unlocked() anymore.
+Let's merge snd_soc_component_add_unlocked() and
+snd_soc_component_add().
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Reviewed-by: Charles Keepax <ckeepax@opensource.wolfsonmicro.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index f22ef347eead..2d3abb3f1231 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -2958,8 +2958,10 @@ EXPORT_SYMBOL_GPL(snd_soc_component_exit_regmap);
+ 
+ #endif
+ 
+-static void snd_soc_component_add_unlocked(struct snd_soc_component *component)
++static void snd_soc_component_add(struct snd_soc_component *component)
+ {
++	mutex_lock(&client_mutex);
++
+ 	if (!component->driver->write && !component->driver->read) {
+ 		if (!component->regmap)
+ 			component->regmap = dev_get_regmap(component->dev, NULL);
+@@ -2969,12 +2971,7 @@ static void snd_soc_component_add_unlocked(struct snd_soc_component *component)
+ 
+ 	list_add(&component->list, &component_list);
+ 	INIT_LIST_HEAD(&component->dobj_list);
+-}
+ 
+-static void snd_soc_component_add(struct snd_soc_component *component)
+-{
+-	mutex_lock(&client_mutex);
+-	snd_soc_component_add_unlocked(component);
+ 	mutex_unlock(&client_mutex);
+ }
+ 
+-- 
+2.24.1
+

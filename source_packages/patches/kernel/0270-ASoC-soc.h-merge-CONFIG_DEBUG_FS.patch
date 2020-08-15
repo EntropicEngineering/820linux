@@ -1,0 +1,38 @@
+From 19120a31116bbb74877a52a732b68a1bc58c6931 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Tue, 8 May 2018 03:21:46 +0000
+Subject: [PATCH 270/334] ASoC: soc.h: merge CONFIG_DEBUG_FS
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Reviewed-by: Charles Keepax <ckeepax@opensource.wolfsonmicro.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index dc723ceb6088..abe218d2c723 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -837,10 +837,6 @@ struct snd_soc_component {
+ 	/* attached dynamic objects */
+ 	struct list_head dobj_list;
+ 
+-#ifdef CONFIG_DEBUG_FS
+-	struct dentry *debugfs_root;
+-#endif
+-
+ 	/*
+ 	* DO NOT use any of the fields below in drivers, they are temporary and
+ 	* are going to be removed again soon. If you use them in driver code the
+@@ -854,6 +850,7 @@ struct snd_soc_component {
+ 	int (*init)(struct snd_soc_component *component);
+ 
+ #ifdef CONFIG_DEBUG_FS
++	struct dentry *debugfs_root;
+ 	const char *debugfs_prefix;
+ #endif
+ };
+-- 
+2.24.1
+

@@ -1,0 +1,72 @@
+From 2f4857e05113b2305cc0397183d5b1e0b21e8ed2 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Thu, 9 Aug 2018 17:58:00 +0530
+Subject: [PATCH 004/334] [6507] Run timer to support long button press for
+ power-off
+
+send key event on holding the power key for 2 sec
+
+Change-Id: I74e23f942ab5b003b2810bf3338fdf539c240a0e
+---
+ drivers/input/misc/pm8941-pwrkey.c | 24 +++++++++++++++++++-----
+ 1 file changed, 19 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/input/misc/pm8941-pwrkey.c b/drivers/input/misc/pm8941-pwrkey.c
+index 6547a57f5222..6671863bf65a 100644
+--- a/drivers/input/misc/pm8941-pwrkey.c
++++ b/drivers/input/misc/pm8941-pwrkey.c
+@@ -56,14 +56,25 @@ struct pm8941_pwrkey {
+ 	u32 baseaddr;
+ 	struct regmap *regmap;
+ 	struct input_dev *input;
+-
++	struct timer_list shutdown_timer;
+ 	unsigned int revision;
+ 	struct notifier_block reboot_notifier;
+ 
+ 	u32 code;
+ 	const struct pm8941_data *data;
+ };
++static void power_button_irq_timer(unsigned long _data)
++{
++	struct pm8941_pwrkey *pwrkey = (struct pm8941_pwrkey *)_data;
++	int sts;
+ 
++	regmap_read(pwrkey->regmap, pwrkey->baseaddr + PON_RT_STS, &sts);
++
++	if(sts == 0x1){
++		input_event(pwrkey->input, EV_KEY, KEY_POWER, 1);
++		input_sync(pwrkey->input);
++	}
++}
+ static int pm8941_reboot_notify(struct notifier_block *nb,
+ 				unsigned long code, void *unused)
+ {
+@@ -134,9 +145,11 @@ static irqreturn_t pm8941_pwrkey_irq(int irq, void *_data)
+ 	if (error)
+ 		return IRQ_HANDLED;
+ 
+-	input_report_key(pwrkey->input, pwrkey->code,
+-			 sts & pwrkey->data->status_bit);
+-	input_sync(pwrkey->input);
++	if(sts == 0x1){
++		mod_timer(&pwrkey->shutdown_timer, jiffies + msecs_to_jiffies(2000));
++	} else {
++		del_timer(&pwrkey->shutdown_timer);
++	}
+ 
+ 	return IRQ_HANDLED;
+ }
+@@ -242,7 +255,8 @@ static int pm8941_pwrkey_probe(struct platform_device *pdev)
+ 
+ 	pwrkey->input->name = "pm8941_pwrkey";
+ 	pwrkey->input->phys = "pm8941_pwrkey/input0";
+-
++	setup_timer(&pwrkey->shutdown_timer,
++	power_button_irq_timer, (unsigned long)pwrkey);
+ 	req_delay = (req_delay << 6) / USEC_PER_SEC;
+ 	req_delay = ilog2(req_delay);
+ 
+-- 
+2.24.1
+

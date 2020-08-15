@@ -1,0 +1,26 @@
+From f0524d7ceaceaaf619011b2760f63bc73c13e9d0 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Tue, 21 Aug 2018 15:02:52 +0530
+Subject: [PATCH 05/10] [6881] Disable splash screen
+
+Change-Id: I752d124394cd4823920a3ed243b96c6a991fcd3e
+---
+ target/msm8996/rules.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/target/msm8996/rules.mk b/target/msm8996/rules.mk
+index dfacf703..0363607c 100644
+--- a/target/msm8996/rules.mk
++++ b/target/msm8996/rules.mk
+@@ -22,7 +22,7 @@ L2_PT_SZ     := 3
+ 
+ DEFINES += PMI_CONFIGURED=1
+ 
+-DEFINES += DISPLAY_SPLASH_SCREEN=1
++DEFINES += DISPLAY_SPLASH_SCREEN=0
+ DEFINES += DISPLAY_TYPE_MIPI=1
+ DEFINES += DISPLAY_TYPE_DSI6G=1
+ 
+-- 
+2.24.1
+

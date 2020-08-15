@@ -1,0 +1,33 @@
+From 06027cf128c75f4cdc31dabd8cd62349dc6d58a3 Mon Sep 17 00:00:00 2001
+From: anish kumar <yesanishhere@gmail.com>
+Date: Wed, 20 Sep 2017 01:28:33 -0700
+Subject: [PATCH 071/334] ASoC: dapm: fix error path in snd_soc_dapm_new_pcm
+
+w_param_text[count] is freed in the wrong error path.
+Fix it by shifting the outfree_w_param label.
+
+Signed-off-by: anish kumar <yesanishhere@gmail.com>
+Reviewed-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-dapm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/soc-dapm.c b/sound/soc/soc-dapm.c
+index 1c9f6a0d234f..f76f08d7249e 100644
+--- a/sound/soc/soc-dapm.c
++++ b/sound/soc/soc-dapm.c
+@@ -3909,9 +3909,9 @@ int snd_soc_dapm_new_pcm(struct snd_soc_card *card,
+ 	devm_kfree(card->dev, (void *)private_value);
+ outfree_link_name:
+ 	devm_kfree(card->dev, link_name);
+-outfree_w_param:
+ 	for (count = 0 ; count < num_params; count++)
+ 		devm_kfree(card->dev, (void *)w_param_text[count]);
++outfree_w_param:
+ 	devm_kfree(card->dev, w_param_text);
+ 
+ 	return ret;
+-- 
+2.24.1
+

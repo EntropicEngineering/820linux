@@ -1,0 +1,48 @@
+From f830d3992a47bea0f5380e39b1e594fd191af934 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 17 May 2018 10:59:16 +0100
+Subject: [PATCH 202/334] dmaengine: qcom: bam_dma: fix invalid assignment
+ warning
+
+Building kernel with W=1 throws below invalid assignment warnings.
+bam_dma.c:676:44: warning: invalid assignment: +=
+bam_dma.c:676:44:    left side has type unsigned long
+bam_dma.c:676:44:    right side has type restricted __le16
+bam_dma.c:921:41: warning: invalid assignment: +=
+bam_dma.c:921:41:    left side has type unsigned long
+bam_dma.c:921:41:    right side has type restricted __le16
+
+Fix them!.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/dma/qcom/bam_dma.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/dma/qcom/bam_dma.c b/drivers/dma/qcom/bam_dma.c
+index 4a828c18099a..28a186f9e1e4 100644
+--- a/drivers/dma/qcom/bam_dma.c
++++ b/drivers/dma/qcom/bam_dma.c
+@@ -673,7 +673,7 @@ static struct dma_async_tx_descriptor *bam_prep_slave_sg(struct dma_chan *chan,
+ 				remainder = 0;
+ 			}
+ 
+-			async_desc->length += desc->size;
++			async_desc->length += le16_to_cpu(desc->size);
+ 			desc++;
+ 		} while (remainder > 0);
+ 	}
+@@ -918,7 +918,8 @@ static enum dma_status bam_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
+ 				continue;
+ 
+ 			for (i = 0; i < async_desc->num_desc; i++)
+-				residue += async_desc->curr_desc[i].size;
++				residue += le16_to_cpu(
++						async_desc->curr_desc[i].size);
+ 		}
+ 	}
+ 
+-- 
+2.24.1
+

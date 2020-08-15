@@ -1,0 +1,34 @@
+From 422bc1bb4210ed64c87dad95ecec48df133c1030 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Fri, 15 Dec 2017 05:10:47 +0000
+Subject: [PATCH 100/334] ASoC: soc-core: care Codec <-> Codec case by
+ non_legacy_dai_naming
+
+CPU/Codec categorize will be removed soon.
+Then, it need to know DAI is Codec somehow. This patch uses component
+driver's "non_legacy_dai_naming" which is used by Codec for it.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 07881d8e0bd7..2d392f2d7ffe 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -1956,7 +1956,9 @@ int snd_soc_runtime_set_dai_fmt(struct snd_soc_pcm_runtime *rtd,
+ 	}
+ 
+ 	/* Flip the polarity for the "CPU" end of a CODEC<->CODEC link */
+-	if (cpu_dai->codec) {
++	/* the component which has non_legacy_dai_naming is Codec */
++	if (cpu_dai->codec ||
++	    cpu_dai->component->driver->non_legacy_dai_naming) {
+ 		unsigned int inv_dai_fmt;
+ 
+ 		inv_dai_fmt = dai_fmt & ~SND_SOC_DAIFMT_MASTER_MASK;
+-- 
+2.24.1
+

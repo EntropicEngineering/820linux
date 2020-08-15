@@ -1,0 +1,28 @@
+From 1566c2c80ede2e7a584fb7497d818be7d1e55931 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Thu, 18 Jan 2018 01:13:54 +0000
+Subject: [PATCH 104/334] ASoC: soc-core: add missing EXPORT_SYMBOL_GPL() for
+ snd_soc_rtdcom_lookup
+
+Reported-by: Atsushi Nemoto <anemo@mba.ocn.ne.jp>
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index d1f7e639d5b1..74e9cd34e4ce 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -598,6 +598,7 @@ struct snd_soc_component *snd_soc_rtdcom_lookup(struct snd_soc_pcm_runtime *rtd,
+ 
+ 	return NULL;
+ }
++EXPORT_SYMBOL_GPL(snd_soc_rtdcom_lookup);
+ 
+ struct snd_pcm_substream *snd_soc_get_dai_substream(struct snd_soc_card *card,
+ 		const char *dai_link, int stream)
+-- 
+2.24.1
+

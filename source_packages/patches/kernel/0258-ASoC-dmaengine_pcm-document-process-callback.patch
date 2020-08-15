@@ -1,0 +1,30 @@
+From bf8f40b76cdae4b3ee71982df40c6f56fe39e914 Mon Sep 17 00:00:00 2001
+From: Olivier Moysan <olivier.moysan@st.com>
+Date: Tue, 13 Mar 2018 17:27:08 +0100
+Subject: [PATCH 258/334] ASoC: dmaengine_pcm: document process callback
+
+Add missing description of process callback.
+
+Fixes: 78648092ef46 ("ASoC: dmaengine_pcm: add processing support")
+Signed-off-by: Olivier Moysan <olivier.moysan@st.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/dmaengine_pcm.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/sound/dmaengine_pcm.h b/include/sound/dmaengine_pcm.h
+index 5d60746baad8..2c4cfaa135a6 100644
+--- a/include/sound/dmaengine_pcm.h
++++ b/include/sound/dmaengine_pcm.h
+@@ -110,6 +110,8 @@ void snd_dmaengine_pcm_set_config_from_dai_data(
+  *   PCM substream. Will be called from the PCM drivers hwparams callback.
+  * @compat_request_channel: Callback to request a DMA channel for platforms
+  *   which do not use devicetree.
++ * @process: Callback used to apply processing on samples transferred from/to
++ *   user space.
+  * @compat_filter_fn: Will be used as the filter function when requesting a
+  *  channel for platforms which do not use devicetree. The filter parameter
+  *  will be the DAI's DMA data.
+-- 
+2.24.1
+

@@ -1,0 +1,36 @@
+From 06bfef5e20762d08ace4070c32ae50ae1ae71f7c Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Sat, 7 Jul 2018 20:22:29 +0100
+Subject: [PATCH 243/334] slimbus: stream: Fix htmldocs warnings
+
+This patch fixes below warning during building htmldoc:
+slimbus.h:352: warning: Function parameter or member 'name'
+ not described in 'slim_stream_runtime'
+
+This patch also removes documentation for state variable
+in struct slim_stream_runtime which was redundant and removed.
+
+Reported-by: kbuild test robot <lkp@intel.com>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/slimbus/slimbus.h | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/slimbus/slimbus.h b/drivers/slimbus/slimbus.h
+index 411880f3fc0a..32ac4046154f 100644
+--- a/drivers/slimbus/slimbus.h
++++ b/drivers/slimbus/slimbus.h
+@@ -325,9 +325,8 @@ enum slim_transport_protocol {
+ /**
+  * struct slim_stream_runtime  - SLIMbus stream runtime instance
+  *
+- * @dev: Name of the stream
++ * @name: Name of the stream
+  * @dev: SLIM Device instance associated with this stream
+- * @state: state of stream
+  * @direction: direction of stream
+  * @prot: Transport protocol used in this stream
+  * @rate: Data rate of samples *
+-- 
+2.24.1
+

@@ -1,0 +1,402 @@
+From 8814040d3527959a93b61a905f362ee7437dbb12 Mon Sep 17 00:00:00 2001
+From: Sagar Dharia <sdharia@codeaurora.org>
+Date: Mon, 11 Dec 2017 23:42:57 +0000
+Subject: [PATCH 216/334] slimbus: Add SLIMbus bus type
+
+SLIMbus (Serial Low Power Interchip Media Bus) is a specification
+developed by MIPI (Mobile Industry Processor Interface) alliance.
+SLIMbus is a 2-wire implementation, which is used to communicate with
+peripheral components like audio-codec.
+SLIMbus uses Time-Division-Multiplexing to accommodate multiple data
+channels, and control channel. Control channel has messages to do
+device-enumeration, messages to send/receive control-data to/from
+SLIMbus devices, messages for port/channel management, and messages to
+do bandwidth allocation.
+The framework supports multiple instances of the bus (1 controller per
+bus), and multiple slave devices per controller.
+
+This patch adds support to basic silmbus core which includes support to
+SLIMbus type, slimbus device registeration and some basic data structures.
+
+Signed-off-by: Sagar Dharia <sdharia@codeaurora.org>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviwed-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+
+Conflicts:
+	drivers/Kconfig
+	include/linux/mod_devicetable.h
+---
+ drivers/Kconfig                 |   2 +
+ drivers/Makefile                |   1 +
+ drivers/slimbus/Kconfig         |  17 +++++
+ drivers/slimbus/Makefile        |   6 ++
+ drivers/slimbus/core.c          | 108 +++++++++++++++++++++++++++++
+ include/linux/mod_devicetable.h |  46 ++++++++++---
+ include/linux/slimbus.h         | 116 ++++++++++++++++++++++++++++++++
+ 7 files changed, 287 insertions(+), 9 deletions(-)
+ create mode 100644 drivers/slimbus/Kconfig
+ create mode 100644 drivers/slimbus/Makefile
+ create mode 100644 drivers/slimbus/core.c
+ create mode 100644 include/linux/slimbus.h
+
+diff --git a/drivers/Kconfig b/drivers/Kconfig
+index 1d7af3c2ff27..dd921785e65c 100644
+--- a/drivers/Kconfig
++++ b/drivers/Kconfig
+@@ -209,4 +209,6 @@ source "drivers/tee/Kconfig"
+ 
+ source "drivers/mux/Kconfig"
+ 
++source "drivers/slimbus/Kconfig"
++
+ endmenu
+diff --git a/drivers/Makefile b/drivers/Makefile
+index 5f5ccdbad21a..284b9dcf2282 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -87,6 +87,7 @@ obj-$(CONFIG_MTD)		+= mtd/
+ obj-$(CONFIG_SPI)		+= spi/
+ obj-$(CONFIG_SPMI)		+= spmi/
+ obj-$(CONFIG_HSI)		+= hsi/
++obj-$(CONFIG_SLIMBUS)		+= slimbus/
+ obj-y				+= net/
+ obj-$(CONFIG_ATM)		+= atm/
+ obj-$(CONFIG_FUSION)		+= message/
+diff --git a/drivers/slimbus/Kconfig b/drivers/slimbus/Kconfig
+new file mode 100644
+index 000000000000..9b6bb84d66ed
+--- /dev/null
++++ b/drivers/slimbus/Kconfig
+@@ -0,0 +1,17 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# SLIMbus driver configuration
++#
++menuconfig SLIMBUS
++	tristate "SLIMbus support"
++	help
++	  SLIMbus is standard interface between System-on-Chip and audio codec,
++	  and other peripheral components in typical embedded systems.
++
++	  If unsure, choose N.
++
++if SLIMBUS
++
++# SLIMbus controllers
++
++endif
+diff --git a/drivers/slimbus/Makefile b/drivers/slimbus/Makefile
+new file mode 100644
+index 000000000000..506ff17d6346
+--- /dev/null
++++ b/drivers/slimbus/Makefile
+@@ -0,0 +1,6 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# Makefile for kernel SLIMbus framework.
++#
++obj-$(CONFIG_SLIMBUS)			+= slimbus.o
++slimbus-y				:= core.o
+diff --git a/drivers/slimbus/core.c b/drivers/slimbus/core.c
+new file mode 100644
+index 000000000000..02f5075a9309
+--- /dev/null
++++ b/drivers/slimbus/core.c
+@@ -0,0 +1,108 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (c) 2011-2017, The Linux Foundation
++ */
++
++#include <linux/kernel.h>
++#include <linux/errno.h>
++#include <linux/slab.h>
++#include <linux/init.h>
++#include <linux/slimbus.h>
++
++static const struct slim_device_id *slim_match(const struct slim_device_id *id,
++					       const struct slim_device *sbdev)
++{
++	while (id->manf_id != 0 || id->prod_code != 0) {
++		if (id->manf_id == sbdev->e_addr.manf_id &&
++		    id->prod_code == sbdev->e_addr.prod_code)
++			return id;
++		id++;
++	}
++	return NULL;
++}
++
++static int slim_device_match(struct device *dev, struct device_driver *drv)
++{
++	struct slim_device *sbdev = to_slim_device(dev);
++	struct slim_driver *sbdrv = to_slim_driver(drv);
++
++	return !!slim_match(sbdrv->id_table, sbdev);
++}
++
++static int slim_device_probe(struct device *dev)
++{
++	struct slim_device	*sbdev = to_slim_device(dev);
++	struct slim_driver	*sbdrv = to_slim_driver(dev->driver);
++
++	return sbdrv->probe(sbdev);
++}
++
++static int slim_device_remove(struct device *dev)
++{
++	struct slim_device *sbdev = to_slim_device(dev);
++	struct slim_driver *sbdrv;
++
++	if (dev->driver) {
++		sbdrv = to_slim_driver(dev->driver);
++		if (sbdrv->remove)
++			sbdrv->remove(sbdev);
++	}
++
++	return 0;
++}
++
++struct bus_type slimbus_bus = {
++	.name		= "slimbus",
++	.match		= slim_device_match,
++	.probe		= slim_device_probe,
++	.remove		= slim_device_remove,
++};
++EXPORT_SYMBOL_GPL(slimbus_bus);
++
++/*
++ * __slim_driver_register() - Client driver registration with SLIMbus
++ *
++ * @drv:Client driver to be associated with client-device.
++ * @owner: owning module/driver
++ *
++ * This API will register the client driver with the SLIMbus
++ * It is called from the driver's module-init function.
++ */
++int __slim_driver_register(struct slim_driver *drv, struct module *owner)
++{
++	/* ID table and probe are mandatory */
++	if (!drv->id_table || !drv->probe)
++		return -EINVAL;
++
++	drv->driver.bus = &slimbus_bus;
++	drv->driver.owner = owner;
++
++	return driver_register(&drv->driver);
++}
++EXPORT_SYMBOL_GPL(__slim_driver_register);
++
++/*
++ * slim_driver_unregister() - Undo effect of slim_driver_register
++ *
++ * @drv: Client driver to be unregistered
++ */
++void slim_driver_unregister(struct slim_driver *drv)
++{
++	driver_unregister(&drv->driver);
++}
++EXPORT_SYMBOL_GPL(slim_driver_unregister);
++
++static void __exit slimbus_exit(void)
++{
++	bus_unregister(&slimbus_bus);
++}
++module_exit(slimbus_exit);
++
++static int __init slimbus_init(void)
++{
++	return bus_register(&slimbus_bus);
++}
++postcore_initcall(slimbus_init);
++
++MODULE_LICENSE("GPL v2");
++MODULE_DESCRIPTION("SLIMbus core");
+diff --git a/include/linux/mod_devicetable.h b/include/linux/mod_devicetable.h
+index c52cd2fd1b3a..48e188327c02 100644
+--- a/include/linux/mod_devicetable.h
++++ b/include/linux/mod_devicetable.h
+@@ -452,15 +452,17 @@ struct spi_device_id {
+ 	kernel_ulong_t driver_data;	/* Data private to the driver */
+ };
+ 
+-#define APR_NAME_SIZE	32
+-#define APR_MODULE_PREFIX "apr:"
+-
+-struct apr_device_id {
+-	char name[APR_NAME_SIZE];
+-	__u32 domain_id;
+-	__u32 svc_id;
+-	__u32 svc_version;
+-	kernel_ulong_t driver_data;	/* Data private to the driver */
++/* SLIMbus */
++
++#define SLIMBUS_NAME_SIZE	32
++#define SLIMBUS_MODULE_PREFIX	"slim:"
++
++struct slim_device_id {
++	__u16 manf_id, prod_code;
++	__u16 dev_index, instance;
++
++	/* Data private to the driver */
++	kernel_ulong_t driver_data;
+ };
+ 
+ #define SPMI_NAME_SIZE	32
+@@ -698,5 +700,31 @@ struct fsl_mc_device_id {
+ 	const char obj_type[16];
+ };
+ 
++/**
++ * struct tb_service_id - Thunderbolt service identifiers
++ * @match_flags: Flags used to match the structure
++ * @protocol_key: Protocol key the service supports
++ * @protocol_id: Protocol id the service supports
++ * @protocol_version: Version of the protocol
++ * @protocol_revision: Revision of the protocol software
++ * @driver_data: Driver specific data
++ *
++ * Thunderbolt XDomain services are exposed as devices where each device
++ * carries the protocol information the service supports. Thunderbolt
++ * XDomain service drivers match against that information.
++ */
++struct tb_service_id {
++	__u32 match_flags;
++	char protocol_key[8 + 1];
++	__u32 protocol_id;
++	__u32 protocol_version;
++	__u32 protocol_revision;
++	kernel_ulong_t driver_data;
++};
++
++#define TBSVC_MATCH_PROTOCOL_KEY	0x0001
++#define TBSVC_MATCH_PROTOCOL_ID		0x0002
++#define TBSVC_MATCH_PROTOCOL_VERSION	0x0004
++#define TBSVC_MATCH_PROTOCOL_REVISION	0x0008
+ 
+ #endif /* LINUX_MOD_DEVICETABLE_H */
+diff --git a/include/linux/slimbus.h b/include/linux/slimbus.h
+new file mode 100644
+index 000000000000..6b4ed290fbb0
+--- /dev/null
++++ b/include/linux/slimbus.h
+@@ -0,0 +1,116 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (c) 2011-2017, The Linux Foundation
++ */
++
++#ifndef _LINUX_SLIMBUS_H
++#define _LINUX_SLIMBUS_H
++#include <linux/device.h>
++#include <linux/module.h>
++#include <linux/mod_devicetable.h>
++
++extern struct bus_type slimbus_bus;
++
++/**
++ * struct slim_eaddr - Enumeration address for a SLIMbus device
++ * @manf_id: Manufacturer Id for the device
++ * @prod_code: Product code
++ * @dev_index: Device index
++ * @instance: Instance value
++ */
++struct slim_eaddr {
++	u16 manf_id;
++	u16 prod_code;
++	u8 dev_index;
++	u8 instance;
++} __packed;
++
++/**
++ * enum slim_device_status - slim device status
++ * @SLIM_DEVICE_STATUS_DOWN: Slim device is absent or not reported yet.
++ * @SLIM_DEVICE_STATUS_UP: Slim device is announced on the bus.
++ * @SLIM_DEVICE_STATUS_RESERVED: Reserved for future use.
++ */
++enum slim_device_status {
++	SLIM_DEVICE_STATUS_DOWN = 0,
++	SLIM_DEVICE_STATUS_UP,
++	SLIM_DEVICE_STATUS_RESERVED,
++};
++
++/**
++ * struct slim_device - Slim device handle.
++ * @dev: Driver model representation of the device.
++ * @e_addr: Enumeration address of this device.
++ * @status: slim device status
++ * @laddr: 1-byte Logical address of this device.
++ * @is_laddr_valid: indicates if the laddr is valid or not
++ *
++ * This is the client/device handle returned when a SLIMbus
++ * device is registered with a controller.
++ * Pointer to this structure is used by client-driver as a handle.
++ */
++struct slim_device {
++	struct device		dev;
++	struct slim_eaddr	e_addr;
++	enum slim_device_status	status;
++	u8			laddr;
++	bool			is_laddr_valid;
++};
++
++#define to_slim_device(d) container_of(d, struct slim_device, dev)
++
++/**
++ * struct slim_driver - SLIMbus 'generic device' (slave) device driver
++ *				(similar to 'spi_device' on SPI)
++ * @probe: Binds this driver to a SLIMbus device.
++ * @remove: Unbinds this driver from the SLIMbus device.
++ * @shutdown: Standard shutdown callback used during powerdown/halt.
++ * @device_status: This callback is called when
++ *	- The device reports present and gets a laddr assigned
++ *	- The device reports absent, or the bus goes down.
++ * @driver: SLIMbus device drivers should initialize name and owner field of
++ *	    this structure
++ * @id_table: List of SLIMbus devices supported by this driver
++ */
++
++struct slim_driver {
++	int	(*probe)(struct slim_device *sl);
++	void	(*remove)(struct slim_device *sl);
++	void	(*shutdown)(struct slim_device *sl);
++	int	(*device_status)(struct slim_device *sl,
++				 enum slim_device_status s);
++	struct device_driver		driver;
++	const struct slim_device_id	*id_table;
++};
++#define to_slim_driver(d) container_of(d, struct slim_driver, driver)
++
++/*
++ * use a macro to avoid include chaining to get THIS_MODULE
++ */
++#define slim_driver_register(drv) \
++	__slim_driver_register(drv, THIS_MODULE)
++int __slim_driver_register(struct slim_driver *drv, struct module *owner);
++void slim_driver_unregister(struct slim_driver *drv);
++
++/**
++ * module_slim_driver() - Helper macro for registering a SLIMbus driver
++ * @__slim_driver: slimbus_driver struct
++ *
++ * Helper macro for SLIMbus drivers which do not do anything special in module
++ * init/exit. This eliminates a lot of boilerplate. Each module may only
++ * use this macro once, and calling it replaces module_init() and module_exit()
++ */
++#define module_slim_driver(__slim_driver) \
++	module_driver(__slim_driver, slim_driver_register, \
++			slim_driver_unregister)
++
++static inline void *slim_get_devicedata(const struct slim_device *dev)
++{
++	return dev_get_drvdata(&dev->dev);
++}
++
++static inline void slim_set_devicedata(struct slim_device *dev, void *data)
++{
++	dev_set_drvdata(&dev->dev, data);
++}
++#endif /* _LINUX_SLIMBUS_H */
+-- 
+2.24.1
+

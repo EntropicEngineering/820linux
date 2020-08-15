@@ -1,0 +1,97 @@
+From 10bbca56663f899951943c37b1ebf21dfa3a374d Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 9 May 2018 13:56:17 +0100
+Subject: [PATCH 256/334] ASoC: qdsp6: dt-bindings: Add q6asm dt bindings
+
+This patch add DT bindings for ASM (Audio Stream Manager) DSP module.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-and-tested-by: Rohit kumar <rohitkr@codeaurora.org>
+Reviewed-by: Rob Herring <robh@kernel.org>
+Reviewed-by: Banajit Goswami <bgoswami@codeaurora.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+
+Conflicts:
+	Documentation/devicetree/bindings/sound/qcom,q6asm.txt
+	include/dt-bindings/sound/qcom,q6asm.h
+---
+ .../devicetree/bindings/sound/qcom,q6asm.txt  | 33 ++++---------------
+ include/dt-bindings/sound/qcom,q6asm.h        |  2 +-
+ 2 files changed, 8 insertions(+), 27 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/sound/qcom,q6asm.txt b/Documentation/devicetree/bindings/sound/qcom,q6asm.txt
+index 41d80a180fc7..2178eb91146f 100644
+--- a/Documentation/devicetree/bindings/sound/qcom,q6asm.txt
++++ b/Documentation/devicetree/bindings/sound/qcom,q6asm.txt
+@@ -1,7 +1,7 @@
+ Qualcomm Audio Stream Manager (Q6ASM) binding
+ 
+ Q6ASM is one of the APR audio service on Q6DSP.
+-Please refer to qcom,apr.txt for details of the coommon apr service bindings
++Please refer to qcom,apr.txt for details of the common apr service bindings
+ used by the apr service device.
+ 
+ - but must contain the following property:
+@@ -9,43 +9,24 @@ used by the apr service device.
+ - compatible:
+ 	Usage: required
+ 	Value type: <stringlist>
+-	Definition: must be "qcom,asm-v<MAJOR-NUMBER>.<MINOR-NUMBER>".
+-		    Or "qcom,asm" where the version number can be queried
++	Definition: must be "qcom,q6asm-v<MAJOR-NUMBER>.<MINOR-NUMBER>".
++		    Or "qcom,q6asm" where the version number can be queried
+ 		    from DSP.
+-		    example "qcom,asm-v2.0"
++		    example "qcom,q6asm-v2.0"
+ 
+ = ASM DAIs (Digial Audio Interface)
+ "dais" subnode of the ASM node represents dai specific configuration
+ 
+ - #sound-dai-cells
+-	Usage: required
+-	Value type: <prop-encoded-array>
+-	Definition: Must be 1
+-
+-== ASM DAI is subnode of "dais" and represent a dai, it includes board specific
+-configuration of each dai. Must contain the following properties.
+-
+-- reg
+ 	Usage: required
+ 	Value type: <u32>
+-	Definition: Must be dai id
+-
+-- compress-playback
+-	Usage: Optional
+-	Value type: <boolean>
+-	Definition: Must be present if dai is configured as compress playback
+-
+-- compress-capture
+-	Usage: Optional
+-	Value type: <boolean>
+-	Definition: Must be present if dai is configured as compress capture
++	Definition: Must be 1
+ 
+ = EXAMPLE
+ 
+-q6asm: q6asm {
++q6asm@7 {
+ 	compatible = "qcom,q6asm";
+-	qcom,apr-svc-name = "ASM";
+-	qcom,apr-svc-id = <APR_SVC_ASM>;
++	reg = <APR_SVC_ASM>;
+ 	q6asmdai: dais {
+ 		#sound-dai-cells = <1>;
+ 	};
+diff --git a/include/dt-bindings/sound/qcom,q6asm.h b/include/dt-bindings/sound/qcom,q6asm.h
+index 2e11b15d930d..1eb77d87c2e8 100644
+--- a/include/dt-bindings/sound/qcom,q6asm.h
++++ b/include/dt-bindings/sound/qcom,q6asm.h
+@@ -1,4 +1,4 @@
+-// SPDX-License-Identifier: GPL-2.0
++/* SPDX-License-Identifier: GPL-2.0 */
+ #ifndef __DT_BINDINGS_Q6_ASM_H__
+ #define __DT_BINDINGS_Q6_ASM_H__
+ 
+-- 
+2.24.1
+

@@ -1,0 +1,29 @@
+From 81da10c5a64f4d3b016dbc1cdc3fab6564d76a97 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Thu, 30 Aug 2018 10:57:39 +0530
+Subject: [PATCH 290/334] [6558] Fixed dts build warnings.
+
+As Q6ASM required address-cell defined in DTS.
+
+Change-Id: I507789a64bbcf284445bb8255474db57951b2d01
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ arch/arm64/boot/dts/qcom/msm8996.dtsi | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8996.dtsi b/arch/arm64/boot/dts/qcom/msm8996.dtsi
+index 1b3ededf855b..980b41ae00c6 100644
+--- a/arch/arm64/boot/dts/qcom/msm8996.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8996.dtsi
+@@ -2043,6 +2043,8 @@
+ 					reg = <APR_SVC_ASM>;
+ 					q6asmdai: dais {
+ 						compatible = "qcom,q6asm-dais";
++						#address-cells = <1>;
++						#size-cells = <0>;
+ 						#sound-dai-cells = <1>;
+ 						iommus = <&lpass_q6_smmu 1>;
+ 
+-- 
+2.24.1
+

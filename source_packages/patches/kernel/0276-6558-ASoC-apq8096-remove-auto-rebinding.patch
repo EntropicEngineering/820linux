@@ -1,0 +1,43 @@
+From b702c8ad1b9b901717bf51a1efbcd7c982d09670 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 10:21:06 +0530
+Subject: [PATCH 276/334] [6558] ASoC: apq8096: remove auto rebinding
+
+Remove auto rebinding support, as component framework can deadlock
+in few usecases if we are trying to add new/remove component within
+a bind/unbind callbacks.
+
+Card rebinding is ASoC core feature so all the previous component
+framework stuff in q6dsp remains removed.
+
+https://lkml.org/lkml/2018/8/2/580
+
+Change-Id: I39db75642b094f374bf5f9fd7f1b2e128307b0e1
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ sound/soc/qcom/apq8096.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/sound/soc/qcom/apq8096.c b/sound/soc/qcom/apq8096.c
+index c8e29d7df304..57ad49ce4e32 100644
+--- a/sound/soc/qcom/apq8096.c
++++ b/sound/soc/qcom/apq8096.c
+@@ -211,7 +211,6 @@ static int apq8096_platform_probe(struct platform_device *pdev)
+ 		return -ENOMEM;
+ 
+ 	card->dev = dev;
+-	card->auto_bind = true;
+ 	dev_set_drvdata(dev, card);
+ 	ret = apq8096_sbc_parse_of(card);
+ 	if (ret) {
+@@ -234,7 +233,6 @@ static int apq8096_platform_remove(struct platform_device *pdev)
+ {
+ 	struct snd_soc_card *card = dev_get_drvdata(&pdev->dev);
+ 
+-	card->auto_bind = false;
+ 	snd_soc_unregister_card(card);
+ 	kfree(card->dai_link);
+ 	kfree(card);
+-- 
+2.24.1
+

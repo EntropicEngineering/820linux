@@ -1,0 +1,81 @@
+From f82347f0c9229384a80c06be216eff6c288874cf Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Mon, 28 May 2018 12:00:15 +0530
+Subject: [PATCH 03/10] [6508] use pm8941 ADC initialization for pmi8996, to
+ read vbat or battery voltage
+
+Current PMIC ADC initialization is not proper for pmi8996, use already working one to read vbat.
+so that, flashing of binaries will not halt during Jflash
+
+Change-Id: Id7fd8dbdc893fab14bf712b6b72a3f8139d6a602
+---
+ include/platform.h          |  1 +
+ platform/msm8996/platform.c |  7 +++++++
+ target/init.c               | 14 +++++++++-----
+ 3 files changed, 17 insertions(+), 5 deletions(-)
+
+diff --git a/include/platform.h b/include/platform.h
+index 5562bbb4..bf844b99 100644
+--- a/include/platform.h
++++ b/include/platform.h
+@@ -39,6 +39,7 @@ void platform_early_init(void);
+ /* later init, after the kernel has come up */
+ void platform_init(void);
+ int platform_is_apq8096_microsom820();
++int platform_is_apq8096_regularsom820();
+ /* called by the arch init code to get the platform to set up any mmu mappings it may need */
+ int platform_use_identity_mmu_mappings(void);
+ void platform_init_mmu_mappings(void);
+diff --git a/platform/msm8996/platform.c b/platform/msm8996/platform.c
+index 8c2aeb60..48fbf9e0 100644
+--- a/platform/msm8996/platform.c
++++ b/platform/msm8996/platform.c
+@@ -206,6 +206,13 @@ int platform_is_apq8096_microsom820()
+ 		(board_hardware_id() == HW_PLATFORM_DRAGON) &&
+ 		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_MICROSOM820));
+ }
++int platform_is_apq8096_regularsom820()
++{
++		return ((board_platform_id() == APQ8096) &&
++		(board_hardware_id() == HW_PLATFORM_DRAGON) &&
++		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_UNKNOWN));
++}
++
+ uint64_t platform_get_ddr_start()
+ {
+ 	return ddr_start;
+diff --git a/target/init.c b/target/init.c
+index 1d67c697..4b83520e 100644
+--- a/target/init.c
++++ b/target/init.c
+@@ -41,7 +41,7 @@
+ #if CHECK_BAT_VOLTAGE
+ #include <pm_fg_adc_usr.h>
+ #endif
+-
++#include <platform.h>
+ #define EXPAND(NAME) #NAME
+ #define TARGET(NAME) EXPAND(NAME)
+ 
+@@ -339,10 +339,14 @@ uint32_t target_get_battery_voltage()
+ 		case PMIC_IS_PMI8950:
+ 		case PMIC_IS_PMI8994:
+ 		case PMIC_IS_PMI8996:
+-			if (!pm_fg_usr_get_vbat(1, &vbat)) {
+-				vbat = vbat*1000; //uv
+-			} else {
+-				dprintf(CRITICAL, "ERROR: Get battery voltage failed!!!\n");
++			if (platform_is_apq8096_microsom820() || platform_is_apq8096_regularsom820())
++				vbat = pm8x41_get_batt_voltage(); //uv
++			else {
++				if (!pm_fg_usr_get_vbat(1, &vbat)) {
++					vbat = vbat*1000; //uv
++				} else {
++					dprintf(CRITICAL, "ERROR: Get battery voltage failed!!!\n");
++				}
+ 			}
+ 			break;
+ 		default:
+-- 
+2.24.1
+

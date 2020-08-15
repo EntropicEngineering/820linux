@@ -1,0 +1,22 @@
+From aaf03ecb70c01a04f31aeee23249e2a5399e051e Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Fri, 31 Aug 2018 10:45:29 +0530
+Subject: [PATCH 292/334] [6601] Enable Realtek RTL816x NIC card driver
+
+Change-Id: I2e550a482a0be2faaf1d151ecc01fe047dc711dc
+---
+ arch/arm64/configs/defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index da5666a3827d..63d47c35e4bc 100644
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -661,3 +661,4 @@ CONFIG_SLIM_QCOM_CTRL=y
+ CONFIG_SLIM_QCOM_NGD_CTRL=y
+ CONFIG_SND_SOC_WCD9335=y
+ CONFIG_REGMAP_SLIMBUS=y
++CONFIG_R8169=m
+-- 
+2.24.1
+

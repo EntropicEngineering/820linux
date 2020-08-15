@@ -1,0 +1,31 @@
+From 83593a57125eae09de7d4c28db5e39b8352ac52e Mon Sep 17 00:00:00 2001
+From: Rohit Kumar <rohitkr@codeaurora.org>
+Date: Wed, 6 Jun 2018 14:25:24 +0530
+Subject: [PATCH 036/334] ASoC: qcom: apq8096: set card as device drvdata
+
+snd_soc_card is retrieved as device drvdata during unbind().
+Set it as drvdata during bind() to avoid memory corruption during
+unbind().
+
+Signed-off-by: Rohit kumar <rohitkr@codeaurora.org>
+Acked-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/qcom/apq8096.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sound/soc/qcom/apq8096.c b/sound/soc/qcom/apq8096.c
+index 561cd429e6f2..239b8cb77bdb 100644
+--- a/sound/soc/qcom/apq8096.c
++++ b/sound/soc/qcom/apq8096.c
+@@ -140,6 +140,7 @@ static int apq8096_bind(struct device *dev)
+ 
+ 	component_bind_all(dev, card);
+ 	card->dev = dev;
++	dev_set_drvdata(dev, card);
+ 	ret = apq8096_sbc_parse_of(card);
+ 	if (ret) {
+ 		dev_err(dev, "Error parsing OF data\n");
+-- 
+2.24.1
+

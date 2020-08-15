@@ -1,0 +1,82 @@
+From d20b23f57c83bffe36d1a5c52f32121c257c7849 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Wed, 8 Aug 2018 18:04:13 +0530
+Subject: [PATCH 002/334] [6507] wlan power/enable config for QCA6174
+
+Configured device tree to enable 3.3V and 1.8V to QCA6174
+Configured wlan enable pin in devices tree.
+Added power up/down sequence for QCA6174
+
+This patch is originally from Mahaboob Vali <mvali@intrinsyc.com>, rebased for 3.1 release
+
+Change-Id: I869553e21819f7279de52d2bead375307527aaa4
+---
+ arch/arm64/boot/dts/qcom/apq8096-openq.dtsi | 55 +++++++++++++++++++++
+ 1 file changed, 55 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi b/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+index 3548b0011a6b..da5ad8535e98 100644
+--- a/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
++++ b/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+@@ -12,3 +12,58 @@
+  * GNU General Public License for more details.
+  */
+ #include "apq8096-db820c.dtsi"
++
++&pmi8994_gpios {
++	wlan_vreg_3p3_en_gpio:pmi8996_gpio8 {
++		pinconf {
++			pins = "gpio8";
++			function = PMIC_GPIO_FUNC_NORMAL;
++			output-enable;
++			bias-pull-up;
++			qcom,drive-strength = <PMIC_GPIO_STRENGTH_LOW>;
++			power-source = <PM8994_GPIO_S4>; // 1.8V
++		};
++	};
++
++	wlan_vreg_1p8_en_gpio:pmi8996_gpio9 {
++		pinconf {
++			pins = "gpio9";
++			function = PMIC_GPIO_FUNC_NORMAL;
++			output-enable;
++			bias-pull-up;
++			qcom,drive-strength = <PMIC_GPIO_STRENGTH_LOW>;
++			power-source = <PM8994_GPIO_S4>; // 1.8V
++		};
++	};
++};
++
++&soc {
++	wlan_3p3_en: wlan-vreg-en-3-3v {
++		compatible = "regulator-fixed";
++		regulator-name = "wlan-vreg-en-3p3-regulator";
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		gpio = <&pmi8994_gpios 8 GPIO_ACTIVE_HIGH>;
++
++		/* WLAN card specific delay */
++		startup-delay-us = <5000>;
++		enable-active-high;
++	};
++
++	wlan_1p8_en: wlan-vreg-en-1-8v {
++		compatible = "regulator-fixed";
++		regulator-name = "wlan-vreg-en-1p8-regulator";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		gpio = <&pmi8994_gpios 9 GPIO_ACTIVE_HIGH>;
++
++		/* WLAN card specific delay */
++		startup-delay-us = <5000>;
++		enable-active-high;
++		vin-supply = <&wlan_3p3_en>;
++	};
++};
++
++&wlan_en {
++	vin-supply = <&wlan_1p8_en>;
++};
+-- 
+2.24.1
+

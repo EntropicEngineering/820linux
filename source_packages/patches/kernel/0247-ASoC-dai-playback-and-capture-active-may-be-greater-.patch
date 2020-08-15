@@ -1,0 +1,45 @@
+From 2d0adf607419e2723529993af99d61e1e6ec3ea9 Mon Sep 17 00:00:00 2001
+From: Jerome Brunet <jbrunet@baylibre.com>
+Date: Fri, 27 Apr 2018 13:31:51 +0200
+Subject: [PATCH 247/334] ASoC: dai playback and capture active may be greater
+ than 1
+
+At the moment playback_active and capture_active are using only 1 bit so
+the maximum active count is 1.
+
+However, snd_soc_runtime_activate() may be called several time on the
+same dai. This happens when a dai is part of several dai_links. It is
+often the case for "snd-soc-dummy-dai".
+
+This is a problem if snd_soc_runtime_activate() is called an even number
+of times on a dai. In this case the active count overflow back to 0. As
+consequence, ASoC functions, such as soc_dpcm_runtime_update(), won't run
+correctly.
+
+Storing these usage counts on plain 'unsigned int' solves the problem.
+
+Fixes: f0fba2ad1b6b ("ASoC: multi-component - ASoC Multi-Component Support")
+Signed-off-by: Jerome Brunet <jbrunet@baylibre.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc-dai.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/sound/soc-dai.h b/include/sound/soc-dai.h
+index d327aee67600..8ee1100620eb 100644
+--- a/include/sound/soc-dai.h
++++ b/include/sound/soc-dai.h
+@@ -303,8 +303,8 @@ struct snd_soc_dai {
+ 	struct snd_soc_dai_driver *driver;
+ 
+ 	/* DAI runtime info */
+-	unsigned int capture_active:1;		/* stream is in use */
+-	unsigned int playback_active:1;		/* stream is in use */
++	unsigned int capture_active;		/* stream usage count */
++	unsigned int playback_active;		/* stream usage count */
+ 	unsigned int probed:1;
+ 
+ 	unsigned int active;
+-- 
+2.24.1
+

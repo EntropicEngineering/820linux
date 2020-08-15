@@ -1,0 +1,41 @@
+From a94614f7be213cacbda20c1875b4c1a730aa3e25 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:23:16 +0000
+Subject: [PATCH 181/334] ASoC: soc-jack.c: convert to SPDX identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-jack.c | 19 +++++++------------
+ 1 file changed, 7 insertions(+), 12 deletions(-)
+
+diff --git a/sound/soc/soc-jack.c b/sound/soc/soc-jack.c
+index b2b16044ae80..c7b990abdbaa 100644
+--- a/sound/soc/soc-jack.c
++++ b/sound/soc/soc-jack.c
+@@ -1,15 +1,10 @@
+-/*
+- * soc-jack.c  --  ALSA SoC jack handling
+- *
+- * Copyright 2008 Wolfson Microelectronics PLC.
+- *
+- * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++// soc-jack.c  --  ALSA SoC jack handling
++//
++// Copyright 2008 Wolfson Microelectronics PLC.
++//
++// Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+ 
+ #include <sound/jack.h>
+ #include <sound/soc.h>
+-- 
+2.24.1
+

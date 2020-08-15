@@ -1,0 +1,31 @@
+From dfb9685e69c4d96eaa68c04b42c0dfe8de2eb8cd Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Mon, 18 Mar 2019 10:43:49 +0530
+Subject: [PATCH 326/334] [8707] set correct venus core freq's to avoid fps
+ issues
+
+Change-Id: Ia179debff864faa0d846f7b28710d37a86f2eccb
+---
+ drivers/media/platform/qcom/venus/core.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/media/platform/qcom/venus/core.c b/drivers/media/platform/qcom/venus/core.c
+index 41eef376eb2d..dc4fb2a75969 100644
+--- a/drivers/media/platform/qcom/venus/core.c
++++ b/drivers/media/platform/qcom/venus/core.c
+@@ -338,9 +338,9 @@ static const struct venus_resources msm8916_res = {
+ 
+ static const struct freq_tbl msm8996_freq_table[] = {
+ 	{ 1944000, 490000000 },	/* 4k UHD @ 60 */
+-	{  972000, 320000000 },	/* 4k UHD @ 30 */
+-	{  489600, 150000000 },	/* 1080p @ 60 */
+-	{  244800,  75000000 },	/* 1080p @ 30 */
++	{  972000, 490000000 },	/* 4k UHD @ 30 */
++	{  489600, 320000000 },	/* 1080p @ 60 */
++	{  244800, 150000000 },	/* 1080p @ 30 */
+ };
+ 
+ static const struct reg_val msm8996_reg_preset[] = {
+-- 
+2.24.1
+

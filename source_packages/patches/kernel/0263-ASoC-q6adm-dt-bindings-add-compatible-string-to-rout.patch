@@ -1,0 +1,43 @@
+From bd758d5ed49692d978ab278341479eef8b340026 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Tue, 26 Jun 2018 10:20:05 +0100
+Subject: [PATCH 263/334] ASoC: q6adm: dt-bindings: add compatible string to
+ routing
+
+Add compatible string to routing so that it can support DT based module
+autoloading.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Acked-by: Niklas Cassel <niklas.cassel@linaro.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ Documentation/devicetree/bindings/sound/qcom,q6adm.txt | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/sound/qcom,q6adm.txt b/Documentation/devicetree/bindings/sound/qcom,q6adm.txt
+index cb709e5dbc44..bbae426cdfb1 100644
+--- a/Documentation/devicetree/bindings/sound/qcom,q6adm.txt
++++ b/Documentation/devicetree/bindings/sound/qcom,q6adm.txt
+@@ -18,6 +18,11 @@ used by the apr service device.
+ = ADM routing
+ "routing" subnode of the ADM node represents adm routing specific configuration
+ 
++- compatible:
++	Usage: required
++	Value type: <stringlist>
++	Definition: must be "qcom,q6adm-routing".
++
+ - #sound-dai-cells
+ 	Usage: required
+ 	Value type: <u32>
+@@ -28,6 +33,7 @@ q6adm@8 {
+ 	compatible = "qcom,q6adm";
+ 	reg = <APR_SVC_ADM>;
+ 	q6routing: routing {
++		compatible = "qcom,q6adm-routing";
+ 		#sound-dai-cells = <0>;
+ 	};
+ };
+-- 
+2.24.1
+

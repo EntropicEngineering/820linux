@@ -1,0 +1,36 @@
+From bf865e9a724182c27553030796e755d5f69f1bcd Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Wed, 3 Apr 2019 14:56:56 +0530
+Subject: [PATCH 329/334] sd card detection/write transfer issue
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+this patch is originally from below commit:
+https://git.linaro.org/landing-teams/working/qualcomm/kernel.git/commit/?h=release/qcomlt-4.14&id=23b2661932d8040f4a79b9cbd6660e59ddd3ae4f
+
+Description of the issue can be found below:
+https://patchwork.kernel.org/patch/10726801/
+
+Change-Id: I230ded34f21a13c5640f5d46511fc51b6ccf169a
+Signed-off-by: Aníbal Limón <anibal.limon@linaro.org>
+---
+ arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi b/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
+index e0c5f3a49906..478a4089c1a3 100644
+--- a/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
++++ b/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
+@@ -649,6 +649,8 @@
+ 				l21 {
+ 					regulator-min-microvolt = <2950000>;
+ 					regulator-max-microvolt = <2950000>;
++					regulator-allow-set-load;
++					regulator-system-load = <200000>;
+ 				};
+ 				l22 {
+ 					regulator-min-microvolt = <3300000>;
+-- 
+2.24.1
+

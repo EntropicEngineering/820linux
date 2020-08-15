@@ -1,0 +1,86 @@
+From 84e6e21e4edb2a0ea301792e78a9890546e0a06a Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Jul 2018 06:24:18 +0000
+Subject: [PATCH 184/334] ASoC: soc-core: convert to SPDX identifiers
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h  | 11 ++++-------
+ sound/soc/soc-core.c | 41 ++++++++++++++++++-----------------------
+ 2 files changed, 22 insertions(+), 30 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index a19aeac728db..abf352f4477f 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -1,13 +1,10 @@
+-/*
++/* SPDX-License-Identifier: GPL-2.0
++ *
+  * linux/sound/soc.h -- ALSA SoC Layer
+  *
+- * Author:		Liam Girdwood
+- * Created:		Aug 11th 2005
++ * Author:	Liam Girdwood
++ * Created:	Aug 11th 2005
+  * Copyright:	Wolfson Microelectronics. PLC.
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License version 2 as
+- * published by the Free Software Foundation.
+  */
+ 
+ #ifndef __LINUX_SND_SOC_H
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 3d56f1fe5914..f97fe28ec1ec 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -1,26 +1,21 @@
+-/*
+- * soc-core.c  --  ALSA SoC Audio Layer
+- *
+- * Copyright 2005 Wolfson Microelectronics PLC.
+- * Copyright 2005 Openedhand Ltd.
+- * Copyright (C) 2010 Slimlogic Ltd.
+- * Copyright (C) 2010 Texas Instruments Inc.
+- *
+- * Author: Liam Girdwood <lrg@slimlogic.co.uk>
+- *         with code, comments and ideas from :-
+- *         Richard Purdie <richard@openedhand.com>
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- *
+- *  TODO:
+- *   o Add hw rules to enforce rates, etc.
+- *   o More testing with other codecs/machines.
+- *   o Add more codecs and platforms to ensure good API coverage.
+- *   o Support TDM on PCM and I2S
+- */
++// SPDX-License-Identifier: GPL-2.0+
++//
++// soc-core.c  --  ALSA SoC Audio Layer
++//
++// Copyright 2005 Wolfson Microelectronics PLC.
++// Copyright 2005 Openedhand Ltd.
++// Copyright (C) 2010 Slimlogic Ltd.
++// Copyright (C) 2010 Texas Instruments Inc.
++//
++// Author: Liam Girdwood <lrg@slimlogic.co.uk>
++//         with code, comments and ideas from :-
++//         Richard Purdie <richard@openedhand.com>
++//
++//  TODO:
++//   o Add hw rules to enforce rates, etc.
++//   o More testing with other codecs/machines.
++//   o Add more codecs and platforms to ensure good API coverage.
++//   o Support TDM on PCM and I2S
+ 
+ #include <linux/module.h>
+ #include <linux/moduleparam.h>
+-- 
+2.24.1
+

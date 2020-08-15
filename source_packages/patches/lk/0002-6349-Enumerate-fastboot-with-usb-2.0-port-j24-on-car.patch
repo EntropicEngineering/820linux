@@ -1,0 +1,131 @@
+From 3a862309cc77180065124fd956c0eece13341792 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Mon, 14 May 2018 15:39:47 +0530
+Subject: [PATCH 02/10] [6349] Enumerate fastboot with usb 2.0 port/ j24 on
+ carrier for microsom
+
+Change-Id: Ifc6aa4b64161ff01a0fb0f95e81a0790261a6560
+---
+ include/platform.h           |  2 +-
+ platform/msm8996/acpuclock.c |  2 +-
+ platform/msm8996/platform.c  | 16 +++++++++++-----
+ platform/msm_shared/smem.h   |  1 +
+ target/msm8996/init.c        |  2 +-
+ 5 files changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/include/platform.h b/include/platform.h
+index 42b05ec3..5562bbb4 100644
+--- a/include/platform.h
++++ b/include/platform.h
+@@ -38,7 +38,7 @@ void platform_early_init(void);
+ 
+ /* later init, after the kernel has come up */
+ void platform_init(void);
+-
++int platform_is_apq8096_microsom820();
+ /* called by the arch init code to get the platform to set up any mmu mappings it may need */
+ int platform_use_identity_mmu_mappings(void);
+ void platform_init_mmu_mappings(void);
+diff --git a/platform/msm8996/acpuclock.c b/platform/msm8996/acpuclock.c
+index c74e2e6a..d8cb1c4a 100644
+--- a/platform/msm8996/acpuclock.c
++++ b/platform/msm8996/acpuclock.c
+@@ -39,7 +39,7 @@
+ #include <regulator.h>
+ #include <blsp_qup.h>
+ #include <err.h>
+-
++#include <platform.h>
+ #define RPM_CE_CLK_TYPE    0x6563
+ #define CE1_CLK_ID         0x0
+ #define RPM_SMD_KEY_RATE   0x007A484B
+diff --git a/platform/msm8996/platform.c b/platform/msm8996/platform.c
+index e7e2ee11..8c2aeb60 100644
+--- a/platform/msm8996/platform.c
++++ b/platform/msm8996/platform.c
+@@ -200,6 +200,12 @@ int platform_is_apq8096_mediabox()
+ 		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_SVLTE1));
+ }
+ 
++int platform_is_apq8096_microsom820()
++{
++		return ((board_platform_id() == APQ8096) &&
++		(board_hardware_id() == HW_PLATFORM_DRAGON) &&
++		(board_hardware_subtype() == HW_PLATFORM_SUBTYPE_MICROSOM820));
++}
+ uint64_t platform_get_ddr_start()
+ {
+ 	return ddr_start;
+@@ -217,7 +223,7 @@ bool platform_use_qmp_misc_settings()
+ /* USB platform specific bases*/
+ uint32_t usb_ctrl_base()
+ {
+-	if (board_hardware_id() == HW_PLATFORM_SBC)
++	if (platform_is_apq8096_microsom820() || board_hardware_id() == HW_PLATFORM_SBC)
+ 		return	MSM_USB20_SEC_BASE;
+ 	else
+ 		return	MSM_USB30_PRIM_BASE;
+@@ -226,7 +232,7 @@ uint32_t usb_ctrl_base()
+ 
+ uint32_t usb_qscratch_base()
+ {
+-	if (board_hardware_id() == HW_PLATFORM_SBC)
++	if (platform_is_apq8096_microsom820() || board_hardware_id() == HW_PLATFORM_SBC)
+ 		return	MSM_USB20_SEC_QSCRATCH_BASE;
+ 	else
+ 		return	MSM_USB30_QSCRATCH_PRIM_BASE;
+@@ -234,7 +240,7 @@ uint32_t usb_qscratch_base()
+ 
+ uint32_t usb_phy_base()
+ {
+-	if (board_hardware_id() == HW_PLATFORM_SBC)
++	if (platform_is_apq8096_microsom820() || board_hardware_id() == HW_PLATFORM_SBC)
+ 		return	QUSB2_SEC_PHY_BASE;
+ 	else
+ 		return	QUSB2_PRIM_PHY_BASE;
+@@ -242,7 +248,7 @@ uint32_t usb_phy_base()
+ 
+ uint32_t usb_phy_bcr()
+ {
+-	if (board_hardware_id() == HW_PLATFORM_SBC)
++	if (platform_is_apq8096_microsom820() || board_hardware_id() == HW_PLATFORM_SBC)
+ 		return	GCC_QUSB2_SEC_PHY_BCR;
+ 	else
+ 		return	GCC_QUSB2_PRIM_PHY_BCR;
+@@ -250,7 +256,7 @@ uint32_t usb_phy_bcr()
+ 
+ int usb_irq()
+ {
+-	if (board_hardware_id() == HW_PLATFORM_SBC)
++	if (platform_is_apq8096_microsom820() || board_hardware_id() == HW_PLATFORM_SBC)
+ 		return	USB20_IRQ;
+ 	else
+ 		return	USB30_IRQ;
+diff --git a/platform/msm_shared/smem.h b/platform/msm_shared/smem.h
+index f75a02f2..08734bf1 100644
+--- a/platform/msm_shared/smem.h
++++ b/platform/msm_shared/smem.h
+@@ -491,6 +491,7 @@ enum platform_subtype {
+ 	HW_PLATFORM_SUBTYPE_DSDA2 = 8,
+ 	HW_PLATFORM_SUBTYPE_SGLTE2 = 9,
+ 	HW_PLATFORM_SUBTYPE_POLARIS = 64,
++	HW_PLATFORM_SUBTYPE_MICROSOM820 = 28,
+ 	HW_PLATFORM_SUBTYPE_32BITS = 0x7FFFFFFF
+ };
+ 
+diff --git a/target/msm8996/init.c b/target/msm8996/init.c
+index 909448e9..1375c00a 100644
+--- a/target/msm8996/init.c
++++ b/target/msm8996/init.c
+@@ -515,7 +515,7 @@ target_usb_iface_t* target_usb30_init()
+ 
+ 
+ 	/* for SBC we use secondary port */
+-	if (board_hardware_id() == HW_PLATFORM_SBC)
++	if (platform_is_apq8096_microsom820() || board_hardware_id() == HW_PLATFORM_SBC)
+ 	{
+ 		/* secondary port have no QMP phy,use only QUSB2 phy that have only reset */
+ 		t_usb_iface->phy_init   = NULL;
+-- 
+2.24.1
+

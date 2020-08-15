@@ -1,0 +1,39 @@
+From 36e74a7dad72e8e292994db24cc33db2e6e7a939 Mon Sep 17 00:00:00 2001
+From: Colin Ian King <colin.king@canonical.com>
+Date: Tue, 2 Jan 2018 17:54:19 +0000
+Subject: [PATCH 226/334] slimbus: avoid null pointer dereference on msg
+
+The pointer msg is checked to see if it is null at the start of
+the function and jumps to the error exit label reterr that then
+dereferences msg when it prints a dev_err error message. Avoid
+this potential null pointer dereference by only printing the
+error message if msg is not null.
+
+Detected by CoverityScan, CID#1463141 ("Dereference after null check")
+
+Signed-off-by: Colin Ian King <colin.king@canonical.com>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/messaging.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index 755462a4c75e..8b2c77f516b9 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -170,8 +170,9 @@ static int slim_val_inf_sanity(struct slim_controller *ctrl,
+ 		break;
+ 	}
+ reterr:
+-	dev_err(ctrl->dev, "Sanity check failed:msg:offset:0x%x, mc:%d\n",
+-		msg->start_offset, mc);
++	if (msg)
++		dev_err(ctrl->dev, "Sanity check failed:msg:offset:0x%x, mc:%d\n",
++			msg->start_offset, mc);
+ 	return -EINVAL;
+ }
+ 
+-- 
+2.24.1
+

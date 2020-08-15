@@ -1,0 +1,35 @@
+From 804b43f82541c02cc40e68f2b86aa7ccd7bd6b1e Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Oct 2017 05:10:33 +0000
+Subject: [PATCH 085/334] ASoC: soc-core: remove unnecessary message from
+ snd_soc_register_component()
+
+No need to print an error message if kzalloc fails.
+The core will print it.
+
+Reported-by: Daniel Baluta <daniel.baluta@gmail.com>
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 166b6d218fe5..a3dcf14befd8 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -3445,10 +3445,8 @@ int snd_soc_register_component(struct device *dev,
+ 	struct snd_soc_component *component;
+ 
+ 	component = kzalloc(sizeof(*component), GFP_KERNEL);
+-	if (!component) {
+-		dev_err(dev, "ASoC: Failed to allocate memory\n");
++	if (!component)
+ 		return -ENOMEM;
+-	}
+ 
+ 	return snd_soc_add_component(dev, component, component_driver,
+ 				     dai_drv, num_dai);
+-- 
+2.24.1
+

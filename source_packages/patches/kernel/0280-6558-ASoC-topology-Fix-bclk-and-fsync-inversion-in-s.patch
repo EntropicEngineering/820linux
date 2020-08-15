@@ -1,0 +1,49 @@
+From 01e865dae3278f1384d511db7581379f05043005 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 11:13:44 +0530
+Subject: [PATCH 280/334] [6558] ASoC: topology: Fix bclk and fsync inversion
+ in set_link_hw_format()
+
+The values of bclk and fsync are inverted WRT the codec. But the existing
+solution already works for Broadwell, see the alsa-lib config:
+
+`alsa-lib/src/conf/topology/broadwell/broadwell.conf`
+
+This commit provides the backwards-compatible solution to fix this misuse.
+
+https://github.com/torvalds/linux/commit/a941e2fab3207cb0d57dc4ec47b1b12c8ea78b84#diff-eaf90d1933d444086df89343107f2579
+
+Change-Id: I94d37c231c2dbea9021dfd09e8138cc63e75fd5f
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ sound/soc/soc-topology.c | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/sound/soc/soc-topology.c b/sound/soc/soc-topology.c
+index 5857f4798255..619c51b02fa6 100644
+--- a/sound/soc/soc-topology.c
++++ b/sound/soc/soc-topology.c
+@@ -1970,13 +1970,15 @@ static void set_link_hw_format(struct snd_soc_dai_link *link,
+ 			link->dai_fmt |= SND_SOC_DAIFMT_IB_IF;
+ 
+ 		/* clock masters */
+-		bclk_master = hw_config->bclk_master;
+-		fsync_master = hw_config->fsync_master;
+-		if (!bclk_master && !fsync_master)
++		bclk_master = (hw_config->bclk_master ==
++			       SND_SOC_TPLG_BCLK_CM);
++		fsync_master = (hw_config->fsync_master ==
++				SND_SOC_TPLG_FSYNC_CM);
++		if (bclk_master && fsync_master)
+ 			link->dai_fmt |= SND_SOC_DAIFMT_CBM_CFM;
+-		else if (bclk_master && !fsync_master)
+-			link->dai_fmt |= SND_SOC_DAIFMT_CBS_CFM;
+ 		else if (!bclk_master && fsync_master)
++			link->dai_fmt |= SND_SOC_DAIFMT_CBS_CFM;
++		else if (bclk_master && !fsync_master)
+ 			link->dai_fmt |= SND_SOC_DAIFMT_CBM_CFS;
+ 		else
+ 			link->dai_fmt |= SND_SOC_DAIFMT_CBS_CFS;
+-- 
+2.24.1
+

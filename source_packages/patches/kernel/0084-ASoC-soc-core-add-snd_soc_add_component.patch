@@ -1,0 +1,92 @@
+From a63a831a2c09ddd0087df7c895cbf6a8ccf57314 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Mon, 2 Oct 2017 05:10:17 +0000
+Subject: [PATCH 084/334] ASoC: soc-core: add snd_soc_add_component()
+
+ALSA SoC platform/codec will be replaced to component soon.
+But, some function exist in "platform" doesn't exist in "component".
+Current soc-core has snd_soc_register_component(), but
+doesn't have snd_soc_add_component() like snd_soc_add_platform().
+This patch adds it.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h  |  5 +++++
+ sound/soc/soc-core.c | 34 +++++++++++++++++++++++-----------
+ 2 files changed, 28 insertions(+), 11 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index 1adaa1d818df..267cb5086295 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -468,6 +468,11 @@ int snd_soc_register_codec(struct device *dev,
+ 		const struct snd_soc_codec_driver *codec_drv,
+ 		struct snd_soc_dai_driver *dai_drv, int num_dai);
+ void snd_soc_unregister_codec(struct device *dev);
++int snd_soc_add_component(struct device *dev,
++		struct snd_soc_component *component,
++		const struct snd_soc_component_driver *component_driver,
++		struct snd_soc_dai_driver *dai_drv,
++		int num_dai);
+ int snd_soc_register_component(struct device *dev,
+ 			 const struct snd_soc_component_driver *component_driver,
+ 			 struct snd_soc_dai_driver *dai_drv, int num_dai);
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 6ec127346e9c..166b6d218fe5 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -3404,20 +3404,14 @@ static void snd_soc_component_del_unlocked(struct snd_soc_component *component)
+ 	list_del(&component->list);
+ }
+ 
+-int snd_soc_register_component(struct device *dev,
+-			       const struct snd_soc_component_driver *component_driver,
+-			       struct snd_soc_dai_driver *dai_drv,
+-			       int num_dai)
++int snd_soc_add_component(struct device *dev,
++			struct snd_soc_component *component,
++			const struct snd_soc_component_driver *component_driver,
++			struct snd_soc_dai_driver *dai_drv,
++			int num_dai)
+ {
+-	struct snd_soc_component *component;
+ 	int ret;
+ 
+-	component = kzalloc(sizeof(*component), GFP_KERNEL);
+-	if (!component) {
+-		dev_err(dev, "ASoC: Failed to allocate memory\n");
+-		return -ENOMEM;
+-	}
+-
+ 	ret = snd_soc_component_initialize(component, component_driver, dev);
+ 	if (ret)
+ 		goto err_free;
+@@ -3441,6 +3435,24 @@ int snd_soc_register_component(struct device *dev,
+ 	kfree(component);
+ 	return ret;
+ }
++EXPORT_SYMBOL_GPL(snd_soc_add_component);
++
++int snd_soc_register_component(struct device *dev,
++			const struct snd_soc_component_driver *component_driver,
++			struct snd_soc_dai_driver *dai_drv,
++			int num_dai)
++{
++	struct snd_soc_component *component;
++
++	component = kzalloc(sizeof(*component), GFP_KERNEL);
++	if (!component) {
++		dev_err(dev, "ASoC: Failed to allocate memory\n");
++		return -ENOMEM;
++	}
++
++	return snd_soc_add_component(dev, component, component_driver,
++				     dai_drv, num_dai);
++}
+ EXPORT_SYMBOL_GPL(snd_soc_register_component);
+ 
+ /**
+-- 
+2.24.1
+

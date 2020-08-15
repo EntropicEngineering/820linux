@@ -1,0 +1,178 @@
+From dfc97bce5edb538b0e2e246629064fae24fd8247 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Tue, 26 Sep 2017 01:00:53 +0000
+Subject: [PATCH 080/334] ASoC: add Component level pcm_new/pcm_free v2
+
+In current ALSA SoC, Platform only has pcm_new/pcm_free feature,
+but it should be supported on Component level. This patch adds it.
+
+The v1 was added commit 99b04f4c4051f7 ("ASoC: add Component level
+pcm_new/pcm_free") but it called all "card" connected component's
+pcm_new/free, it was wrong.
+This patch calls "rtd" connected component.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h  |  6 ++++++
+ sound/soc/soc-core.c | 42 ++++++++++++++++++++++++++++++++++++++++++
+ sound/soc/soc-pcm.c  | 29 +++++++++++++++++++++--------
+ 3 files changed, 69 insertions(+), 8 deletions(-)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index d22de9712c45..5504c3ae718e 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -795,6 +795,10 @@ struct snd_soc_component_driver {
+ 	int (*suspend)(struct snd_soc_component *);
+ 	int (*resume)(struct snd_soc_component *);
+ 
++	/* pcm creation and destruction */
++	int (*pcm_new)(struct snd_soc_pcm_runtime *);
++	void (*pcm_free)(struct snd_pcm *);
++
+ 	/* component wide operations */
+ 	int (*set_sysclk)(struct snd_soc_component *component,
+ 			  int clk_id, int source, unsigned int freq, int dir);
+@@ -872,6 +876,8 @@ struct snd_soc_component {
+ 	void (*remove)(struct snd_soc_component *);
+ 	int (*suspend)(struct snd_soc_component *);
+ 	int (*resume)(struct snd_soc_component *);
++	int (*pcm_new)(struct snd_soc_component *, struct snd_soc_pcm_runtime *);
++	void (*pcm_free)(struct snd_soc_component *, struct snd_pcm *);
+ 
+ 	int (*set_sysclk)(struct snd_soc_component *component,
+ 			  int clk_id, int source, unsigned int freq, int dir);
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 1b5b51952718..faed564670cd 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -3254,6 +3254,22 @@ static int snd_soc_component_stream_event(struct snd_soc_dapm_context *dapm,
+ 	return component->driver->stream_event(component, event);
+ }
+ 
++static int snd_soc_component_drv_pcm_new(struct snd_soc_component *component,
++					struct snd_soc_pcm_runtime *rtd)
++{
++	if (component->driver->pcm_new)
++		return component->driver->pcm_new(rtd);
++
++	return 0;
++}
++
++static void snd_soc_component_drv_pcm_free(struct snd_soc_component *component,
++					  struct snd_pcm *pcm)
++{
++	if (component->driver->pcm_free)
++		component->driver->pcm_free(pcm);
++}
++
+ static int snd_soc_component_initialize(struct snd_soc_component *component,
+ 	const struct snd_soc_component_driver *driver, struct device *dev)
+ {
+@@ -3274,6 +3290,8 @@ static int snd_soc_component_initialize(struct snd_soc_component *component,
+ 	component->set_sysclk = component->driver->set_sysclk;
+ 	component->set_pll = component->driver->set_pll;
+ 	component->set_jack = component->driver->set_jack;
++	component->pcm_new = snd_soc_component_drv_pcm_new;
++	component->pcm_free = snd_soc_component_drv_pcm_free;
+ 
+ 	dapm = snd_soc_component_get_dapm(component);
+ 	dapm->dev = dev;
+@@ -3466,6 +3484,26 @@ static void snd_soc_platform_drv_remove(struct snd_soc_component *component)
+ 	platform->driver->remove(platform);
+ }
+ 
++static int snd_soc_platform_drv_pcm_new(struct snd_soc_component *component,
++					struct snd_soc_pcm_runtime *rtd)
++{
++	struct snd_soc_platform *platform = snd_soc_component_to_platform(component);
++
++	if (platform->driver->pcm_new)
++		return platform->driver->pcm_new(rtd);
++
++	return 0;
++}
++
++static void snd_soc_platform_drv_pcm_free(struct snd_soc_component *component,
++					  struct snd_pcm *pcm)
++{
++	struct snd_soc_platform *platform = snd_soc_component_to_platform(component);
++
++	if (platform->driver->pcm_free)
++		platform->driver->pcm_free(pcm);
++}
++
+ /**
+  * snd_soc_add_platform - Add a platform to the ASoC core
+  * @dev: The parent device for the platform
+@@ -3489,6 +3527,10 @@ int snd_soc_add_platform(struct device *dev, struct snd_soc_platform *platform,
+ 		platform->component.probe = snd_soc_platform_drv_probe;
+ 	if (platform_drv->remove)
+ 		platform->component.remove = snd_soc_platform_drv_remove;
++	if (platform_drv->pcm_new)
++		platform->component.pcm_new = snd_soc_platform_drv_pcm_new;
++	if (platform_drv->pcm_free)
++		platform->component.pcm_free = snd_soc_platform_drv_pcm_free;
+ 
+ #ifdef CONFIG_DEBUG_FS
+ 	platform->component.debugfs_prefix = "platform";
+diff --git a/sound/soc/soc-pcm.c b/sound/soc/soc-pcm.c
+index 09fed7014ed8..e5eb0cff790b 100644
+--- a/sound/soc/soc-pcm.c
++++ b/sound/soc/soc-pcm.c
+@@ -2633,12 +2633,18 @@ static int dpcm_fe_dai_close(struct snd_pcm_substream *fe_substream)
+ static void soc_pcm_private_free(struct snd_pcm *pcm)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
+-	struct snd_soc_platform *platform = rtd->platform;
++	struct snd_soc_rtdcom_list *rtdcom;
++	struct snd_soc_component *component;
++
++	for_each_rtdcom(rtd, rtdcom) {
++		/* need to sync the delayed work before releasing resources */
++
++		flush_delayed_work(&rtd->delayed_work);
++		component = rtdcom->component;
+ 
+-	/* need to sync the delayed work before releasing resources */
+-	flush_delayed_work(&rtd->delayed_work);
+-	if (platform->driver->pcm_free)
+-		platform->driver->pcm_free(pcm);
++		if (component->pcm_free)
++			component->pcm_free(component, pcm);
++	}
+ }
+ 
+ /* create a new pcm */
+@@ -2647,6 +2653,8 @@ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num)
+ 	struct snd_soc_platform *platform = rtd->platform;
+ 	struct snd_soc_dai *codec_dai;
+ 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
++	struct snd_soc_component *component;
++	struct snd_soc_rtdcom_list *rtdcom;
+ 	struct snd_pcm *pcm;
+ 	char new_name[64];
+ 	int ret = 0, playback = 0, capture = 0;
+@@ -2756,10 +2764,15 @@ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num)
+ 	if (capture)
+ 		snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &rtd->ops);
+ 
+-	if (platform->driver->pcm_new) {
+-		ret = platform->driver->pcm_new(rtd);
++	for_each_rtdcom(rtd, rtdcom) {
++		component = rtdcom->component;
++
++		if (!component->pcm_new)
++			continue;
++
++		ret = component->pcm_new(component, rtd);
+ 		if (ret < 0) {
+-			dev_err(platform->dev,
++			dev_err(component->dev,
+ 				"ASoC: pcm constructor failed: %d\n",
+ 				ret);
+ 			return ret;
+-- 
+2.24.1
+

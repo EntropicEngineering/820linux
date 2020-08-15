@@ -1,0 +1,148 @@
+From cd0eb7a12312808615734a0d75342460ba90578f Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 10:39:34 +0530
+Subject: [PATCH 278/334] [6558] ASoC: compress: make BE and FE order inline
+ with dpcm
+
+For some reason order of startup/hw_params/prepare are reversed
+in dynamic compress usecase when compared to dpcm usecase. This is
+a issue with platforms like QCOM where it expects the BE to be
+initialized before FE.
+
+Interestingly the compress trigger callback order is inline with dpcm.
+
+Am not 100% sure why the compress audio case has been reversed.
+This patch is making the order inline with dpcm.
+
+If the reverse ordering is just co-incendental then this change
+makes sense and will avoid inventing some new mechanism to cope
+with ordering.
+
+https://lkml.org/lkml/2018/8/3/443
+
+Change-Id: Iff6b36c00257fc76fd79ab079476c138c3d2e624
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ sound/soc/soc-compress.c | 66 ++++++++++++++++++++--------------------
+ 1 file changed, 33 insertions(+), 33 deletions(-)
+
+diff --git a/sound/soc/soc-compress.c b/sound/soc/soc-compress.c
+index 15c894f426ad..9390750c797a 100644
+--- a/sound/soc/soc-compress.c
++++ b/sound/soc/soc-compress.c
+@@ -141,6 +141,32 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
+ 
+ 	mutex_lock_nested(&fe->card->mutex, SND_SOC_CARD_CLASS_RUNTIME);
+ 
++	fe->dpcm[stream].runtime = fe_substream->runtime;
++
++	ret = dpcm_path_get(fe, stream, &list);
++	if (ret < 0)
++		goto be_err;
++	else if (ret == 0)
++		dev_dbg(fe->dev, "Compress ASoC: %s no valid %s route\n",
++			fe->dai_link->name, stream ? "capture" : "playback");
++	/* calculate valid and active FE <-> BE
++	 * dpcms */
++	dpcm_process_paths(fe, stream, &list, 1);
++	fe->dpcm[stream].runtime = fe_substream->runtime;
++
++	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
++
++	ret = dpcm_be_dai_startup(fe, stream);
++	if (ret < 0) {
++		/* clean up all links */
++		list_for_each_entry(dpcm, &fe->dpcm[stream].be_clients, list_be)
++			dpcm->state = SND_SOC_DPCM_LINK_STATE_FREE;
++
++		dpcm_be_disconnect(fe, stream);
++		fe->dpcm[stream].runtime = NULL;
++		goto out;
++	}
++
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->startup) {
+ 		ret = cpu_dai->driver->cops->startup(cstream, cpu_dai);
+ 		if (ret < 0) {
+@@ -153,7 +179,7 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
+ 
+ 	ret = soc_compr_components_open(cstream, &component);
+ 	if (ret < 0)
+-		goto machine_err;
++		goto open_err;
+ 
+ 	if (fe->dai_link->compr_ops && fe->dai_link->compr_ops->startup) {
+ 		ret = fe->dai_link->compr_ops->startup(cstream);
+@@ -164,31 +190,6 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
+ 		}
+ 	}
+ 
+-	fe->dpcm[stream].runtime = fe_substream->runtime;
+-
+-	ret = dpcm_path_get(fe, stream, &list);
+-	if (ret < 0)
+-		goto fe_err;
+-	else if (ret == 0)
+-		dev_dbg(fe->dev, "Compress ASoC: %s no valid %s route\n",
+-			fe->dai_link->name, stream ? "capture" : "playback");
+-
+-	/* calculate valid and active FE <-> BE dpcms */
+-	dpcm_process_paths(fe, stream, &list, 1);
+-
+-	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
+-
+-	ret = dpcm_be_dai_startup(fe, stream);
+-	if (ret < 0) {
+-		/* clean up all links */
+-		list_for_each_entry(dpcm, &fe->dpcm[stream].be_clients, list_be)
+-			dpcm->state = SND_SOC_DPCM_LINK_STATE_FREE;
+-
+-		dpcm_be_disconnect(fe, stream);
+-		fe->dpcm[stream].runtime = NULL;
+-		goto path_err;
+-	}
+-
+ 	dpcm_clear_pending_state(fe, stream);
+ 	dpcm_path_put(&list);
+ 
+@@ -201,17 +202,15 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
+ 
+ 	return 0;
+ 
+-path_err:
+-	dpcm_path_put(&list);
+-fe_err:
+-	if (fe->dai_link->compr_ops && fe->dai_link->compr_ops->shutdown)
+-		fe->dai_link->compr_ops->shutdown(cstream);
+ machine_err:
+ 	soc_compr_components_free(cstream, component);
+ 
++open_err:
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->shutdown)
+ 		cpu_dai->driver->cops->shutdown(cstream, cpu_dai);
+ out:
++	dpcm_path_put(&list);
++be_err:
+ 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_NO;
+ 	mutex_unlock(&fe->card->mutex);
+ 	return ret;
+@@ -570,14 +569,15 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
+ 	if (ret < 0)
+ 		goto out;
+ 
+-	dpcm_dapm_stream_event(fe, stream, SND_SOC_DAPM_STREAM_START);
+-	fe->dpcm[stream].state = SND_SOC_DPCM_STATE_PREPARE;
+ 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->set_params) {
+ 		ret = cpu_dai->driver->cops->set_params(cstream, params, cpu_dai);
+ 		if (ret < 0)
+ 			goto out;
+ 	}
+ 
++	dpcm_dapm_stream_event(fe, stream, SND_SOC_DAPM_STREAM_START);
++	fe->dpcm[stream].state = SND_SOC_DPCM_STATE_PREPARE;
++
+ 	for_each_rtdcom(fe, rtdcom) {
+ 		component = rtdcom->component;
+ 
+-- 
+2.24.1
+

@@ -1,0 +1,33 @@
+From 35955e600d92de85770166ecb30aeaa6e3600304 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 29 Aug 2018 17:04:16 +0530
+Subject: [PATCH 286/334] [6558] synchronization between ngd driver and ngd
+ device
+
+Change-Id: I1e59ad42fbef868eb9408b4ca0cd3839999fbb59
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+---
+ drivers/slimbus/qcom-ngd-ctrl.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/slimbus/qcom-ngd-ctrl.c b/drivers/slimbus/qcom-ngd-ctrl.c
+index 8be4d6786c61..8ab1b3414467 100644
+--- a/drivers/slimbus/qcom-ngd-ctrl.c
++++ b/drivers/slimbus/qcom-ngd-ctrl.c
+@@ -1338,12 +1338,12 @@ static int of_qcom_slim_ngd_register(struct device *parent,
+ 		ctrl->ngd = ngd;
+ 		platform_set_drvdata(ngd->pdev, ctrl);
+ 
+-		platform_device_add(ngd->pdev);
+ 		ngd->base = ctrl->base + ngd->id * data->offset +
+ 					(ngd->id - 1) * data->size;
+ 		ctrl->ngd = ngd;
+ 		platform_driver_register(&qcom_slim_ngd_driver);
+ 
++		platform_device_add(ngd->pdev);
+ 		return 0;
+ 	}
+ 
+-- 
+2.24.1
+

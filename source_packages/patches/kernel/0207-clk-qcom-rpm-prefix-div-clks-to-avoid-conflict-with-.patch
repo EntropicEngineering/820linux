@@ -1,0 +1,50 @@
+From 9611ce5a7865e90e221a80606be2773f95952d60 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Tue, 17 Jul 2018 10:45:49 +0100
+Subject: [PATCH 207/334] clk: qcom: rpm: prefix div clks to avoid conflict
+ with spmi div clks
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/clk/qcom/clk-smd-rpm.c | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/clk/qcom/clk-smd-rpm.c b/drivers/clk/qcom/clk-smd-rpm.c
+index c26d9007bfc4..a542b8d274ba 100644
+--- a/drivers/clk/qcom/clk-smd-rpm.c
++++ b/drivers/clk/qcom/clk-smd-rpm.c
+@@ -551,9 +551,9 @@ DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, bb_clk2, bb_clk2_a, 2);
+ DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, rf_clk1, rf_clk1_a, 4);
+ DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, rf_clk2, rf_clk2_a, 5);
+ DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, ln_bb_clk, ln_bb_a_clk, 8);
+-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, div_clk1, div_clk1_a, 0xb);
+-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, div_clk2, div_clk2_a, 0xc);
+-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, div_clk3, div_clk3_a, 0xd);
++DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, rpm_div_clk1, rpm_div_clk1_a, 0xb);
++DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, rpm_div_clk2, rpm_div_clk2_a, 0xc);
++DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, rpm_div_clk3, rpm_div_clk3_a, 0xd);
+ DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8996, bb_clk1_pin, bb_clk1_a_pin, 1);
+ DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8996, bb_clk2_pin, bb_clk2_a_pin, 2);
+ DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8996, rf_clk1_pin, rf_clk1_a_pin, 4);
+@@ -590,12 +590,12 @@ static struct clk_smd_rpm *msm8996_clks[] = {
+ 	[RPM_SMD_RF_CLK2_A] = &msm8996_rf_clk2_a,
+ 	[RPM_SMD_LN_BB_CLK] = &msm8996_ln_bb_clk,
+ 	[RPM_SMD_LN_BB_A_CLK] = &msm8996_ln_bb_a_clk,
+-	[RPM_SMD_DIV_CLK1] = &msm8996_div_clk1,
+-	[RPM_SMD_DIV_A_CLK1] = &msm8996_div_clk1_a,
+-	[RPM_SMD_DIV_CLK2] = &msm8996_div_clk2,
+-	[RPM_SMD_DIV_A_CLK2] = &msm8996_div_clk2_a,
+-	[RPM_SMD_DIV_CLK3] = &msm8996_div_clk3,
+-	[RPM_SMD_DIV_A_CLK3] = &msm8996_div_clk3_a,
++	[RPM_SMD_DIV_CLK1] = &msm8996_rpm_div_clk1,
++	[RPM_SMD_DIV_A_CLK1] = &msm8996_rpm_div_clk1_a,
++	[RPM_SMD_DIV_CLK2] = &msm8996_rpm_div_clk2,
++	[RPM_SMD_DIV_A_CLK2] = &msm8996_rpm_div_clk2_a,
++	[RPM_SMD_DIV_CLK3] = &msm8996_rpm_div_clk3,
++	[RPM_SMD_DIV_A_CLK3] = &msm8996_rpm_div_clk3_a,
+ 	[RPM_SMD_BB_CLK1_PIN] = &msm8996_bb_clk1_pin,
+ 	[RPM_SMD_BB_CLK1_A_PIN] = &msm8996_bb_clk1_a_pin,
+ 	[RPM_SMD_BB_CLK2_PIN] = &msm8996_bb_clk2_pin,
+-- 
+2.24.1
+

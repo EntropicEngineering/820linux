@@ -1,0 +1,56 @@
+From 62d85eb2626413a57d16858977b7c2da49ce7eb1 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Wed, 14 Feb 2018 02:58:03 +0000
+Subject: [PATCH 119/334] ASoC: soc-core: soc_probe_dai() code simplification
+
+Current soc_probe_dai() is using deep nested condition.
+Thus, it is difficult to read/understand.
+This patch simplification it.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-core.c | 23 +++++++++++------------
+ 1 file changed, 11 insertions(+), 12 deletions(-)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 4cc1e4934826..cd4d031a19e8 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -1619,22 +1619,21 @@ static int soc_probe_link_components(struct snd_soc_card *card,
+ 
+ static int soc_probe_dai(struct snd_soc_dai *dai, int order)
+ {
+-	int ret;
++	if (dai->probed ||
++	    dai->driver->probe_order != order)
++		return 0;
+ 
+-	if (!dai->probed && dai->driver->probe_order == order) {
+-		if (dai->driver->probe) {
+-			ret = dai->driver->probe(dai);
+-			if (ret < 0) {
+-				dev_err(dai->dev,
+-					"ASoC: failed to probe DAI %s: %d\n",
+-					dai->name, ret);
+-				return ret;
+-			}
++	if (dai->driver->probe) {
++		int ret = dai->driver->probe(dai);
++		if (ret < 0) {
++			dev_err(dai->dev, "ASoC: failed to probe DAI %s: %d\n",
++				dai->name, ret);
++			return ret;
+ 		}
+-
+-		dai->probed = 1;
+ 	}
+ 
++	dai->probed = 1;
++
+ 	return 0;
+ }
+ 
+-- 
+2.24.1
+

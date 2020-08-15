@@ -1,0 +1,58 @@
+From 8472efd429b7014839ae6da770fa52860d24f5b7 Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Tue, 16 Jan 2018 02:00:59 +0000
+Subject: [PATCH 103/334] ASoC: add Component level .read/.write
+
+In current ALSA SoC, Codec only has .read/.write callback.
+Codec will be merged into Component in next generation ALSA SoC,
+thus current Codec specific feature need to be merged into it.
+This is glue patch for it.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/sound/soc.h | 3 +++
+ sound/soc/soc-io.c  | 6 ++++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index 008b7480ce6d..8a29085712ea 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -804,6 +804,9 @@ struct snd_soc_component_driver {
+ 	int (*suspend)(struct snd_soc_component *);
+ 	int (*resume)(struct snd_soc_component *);
+ 
++	unsigned int (*read)(struct snd_soc_component *, unsigned int);
++	int (*write)(struct snd_soc_component *, unsigned int, unsigned int);
++
+ 	/* pcm creation and destruction */
+ 	int (*pcm_new)(struct snd_soc_pcm_runtime *);
+ 	void (*pcm_free)(struct snd_pcm *);
+diff --git a/sound/soc/soc-io.c b/sound/soc/soc-io.c
+index 20340ade20a7..2bc1c4c17896 100644
+--- a/sound/soc/soc-io.c
++++ b/sound/soc/soc-io.c
+@@ -34,6 +34,10 @@ int snd_soc_component_read(struct snd_soc_component *component,
+ 		ret = regmap_read(component->regmap, reg, val);
+ 	else if (component->read)
+ 		ret = component->read(component, reg, val);
++	else if (component->driver->read) {
++		*val = component->driver->read(component, reg);
++		ret = 0;
++	}
+ 	else
+ 		ret = -EIO;
+ 
+@@ -70,6 +74,8 @@ int snd_soc_component_write(struct snd_soc_component *component,
+ 		return regmap_write(component->regmap, reg, val);
+ 	else if (component->write)
+ 		return component->write(component, reg, val);
++	else if (component->driver->write)
++		return component->driver->write(component, reg, val);
+ 	else
+ 		return -EIO;
+ }
+-- 
+2.24.1
+

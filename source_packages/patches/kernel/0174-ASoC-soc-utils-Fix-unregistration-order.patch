@@ -1,0 +1,32 @@
+From fdab6a7d82b24ea6ba9a8b4901b88af26635c4cb Mon Sep 17 00:00:00 2001
+From: Fabio Estevam <fabio.estevam@nxp.com>
+Date: Tue, 26 Jun 2018 08:58:35 -0300
+Subject: [PATCH 174/334] ASoC: soc-utils: Fix unregistration order
+
+The unregistration should happen in the opposite order of
+the registration, so change it accordingly.
+
+No real issue has been noticed, but it is good practice to
+keep the correct unregistration order.
+
+Signed-off-by: Fabio Estevam <fabio.estevam@nxp.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-utils.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/soc-utils.c b/sound/soc/soc-utils.c
+index 2d9e98bd1530..a863bb3f66c2 100644
+--- a/sound/soc/soc-utils.c
++++ b/sound/soc/soc-utils.c
+@@ -381,6 +381,6 @@ int __init snd_soc_util_init(void)
+ 
+ void __exit snd_soc_util_exit(void)
+ {
+-	platform_device_unregister(soc_dummy_dev);
+ 	platform_driver_unregister(&soc_dummy_driver);
++	platform_device_unregister(soc_dummy_dev);
+ }
+-- 
+2.24.1
+

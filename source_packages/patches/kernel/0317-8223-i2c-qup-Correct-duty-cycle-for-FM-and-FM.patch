@@ -1,0 +1,51 @@
+From 4d8dfbefebd0f5500340672714eb876854dce1e1 Mon Sep 17 00:00:00 2001
+From: Austin Christ <austinwc@codeaurora.org>
+Date: Thu, 10 May 2018 10:13:56 -0600
+Subject: [PATCH 317/334] [8223] i2c: qup: Correct duty cycle for FM and FM+
+
+The I2C spec UM10204 Rev. 6 specifies the following timings.
+
+           Standard      Fast Mode     Fast Mode Plus
+SCL low    4.7us         1.3us         0.5us
+SCL high   4.0us         0.6us         0.26us
+
+This results in a 33%/66% duty cycle as opposed to the 50%/50% duty cycle
+used for Standard-mode.
+
+Add High Time Divider settings to correct duty cycle for FM(400kHz) and
+FM+(1MHz).
+
+Change-Id: I5e8ba06901a01957c3f3fee43d1aed55b71fdd7a
+Signed-off-by: Austin Christ <austinwc@codeaurora.org>
+Reviewed-by: Sricharan R <sricharan@codeaurora.org>
+Reviewed-by: Andy Gross <andy.gross@linaro.org>
+Signed-off-by: Wolfram Sang <wsa@the-dreams.de>
+---
+ drivers/i2c/busses/i2c-qup.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/i2c/busses/i2c-qup.c b/drivers/i2c/busses/i2c-qup.c
+index 5fcd91278a5f..a1bb4d3005f3 100644
+--- a/drivers/i2c/busses/i2c-qup.c
++++ b/drivers/i2c/busses/i2c-qup.c
+@@ -1844,9 +1844,15 @@ static int qup_i2c_probe(struct platform_device *pdev)
+ 	size = QUP_INPUT_FIFO_SIZE(io_mode);
+ 	qup->in_fifo_sz = qup->in_blk_sz * (2 << size);
+ 
+-	fs_div = ((src_clk_freq / clk_freq) / 2) - 3;
+ 	hs_div = 3;
+-	qup->clk_ctl = (hs_div << 8) | (fs_div & 0xff);
++	if (clk_freq <= I2C_STANDARD_FREQ) {
++		fs_div = ((src_clk_freq / clk_freq) / 2) - 3;
++		qup->clk_ctl = (hs_div << 8) | (fs_div & 0xff);
++	} else {
++		/* 33%/66% duty cycle */
++		fs_div = ((src_clk_freq / clk_freq) - 6) * 2 / 3;
++		qup->clk_ctl = ((fs_div / 2) << 16) | (hs_div << 8) | (fs_div & 0xff);
++	}
+ 
+ 	/*
+ 	 * Time it takes for a byte to be clocked out on the bus.
+-- 
+2.24.1
+

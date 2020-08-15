@@ -1,0 +1,44 @@
+From bcdc10b620c4b57234d62fd5ef9bcebdc4050bcf Mon Sep 17 00:00:00 2001
+From: Mahaboob Vali <mvali@intrinsyc.com>
+Date: Thu, 30 Aug 2018 17:34:10 +0530
+Subject: [PATCH 291/334] [6857] clk: qcom: gdsc: add flags to camss
+
+This change is needed to make suspend/resume as expected by making
+CAMSS GDSC enable/disable respectively.
+
+Change-Id: I14771e1ba74f72f43fdd286a40230975cbe779d1
+---
+ drivers/clk/qcom/mmcc-msm8996.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/clk/qcom/mmcc-msm8996.c b/drivers/clk/qcom/mmcc-msm8996.c
+index 4f0f930bc4d4..cddcc08c5931 100644
+--- a/drivers/clk/qcom/mmcc-msm8996.c
++++ b/drivers/clk/qcom/mmcc-msm8996.c
+@@ -2987,6 +2987,7 @@ static struct gdsc camss_gdsc = {
+ 	},
+ 	.parent = &mmagic_camss_gdsc.pd,
+ 	.pwrsts = PWRSTS_OFF_ON,
++	.flags = VOTABLE | ALWAYS_ON,
+ };
+ 
+ static struct gdsc vfe1_gdsc = {
+@@ -2998,6 +2999,7 @@ static struct gdsc vfe1_gdsc = {
+ 	},
+ 	.parent = &camss_gdsc.pd,
+ 	.pwrsts = PWRSTS_OFF_ON,
++	.flags = VOTABLE | ALWAYS_ON,
+ };
+ 
+ static struct gdsc vfe0_gdsc = {
+@@ -3009,6 +3011,7 @@ static struct gdsc vfe0_gdsc = {
+ 	},
+ 	.parent = &vfe1_gdsc.pd,
+ 	.pwrsts = PWRSTS_OFF_ON,
++	.flags = VOTABLE | ALWAYS_ON,
+ };
+ 
+ static struct gdsc jpeg_gdsc = {
+-- 
+2.24.1
+

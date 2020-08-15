@@ -1,0 +1,32 @@
+From cd19c55132e7af293bd2ac0c26ac0c41f2e225b2 Mon Sep 17 00:00:00 2001
+From: Arvind Yadav <arvind.yadav.cs@gmail.com>
+Date: Fri, 9 Mar 2018 14:09:59 +0000
+Subject: [PATCH 232/334] slimbus: core: use put_device() instead of kfree()
+
+Never directly free @dev after calling device_register(), even
+if it returned an error! Always use put_device() to give up the
+reference initialized.
+
+Signed-off-by: Arvind Yadav <arvind.yadav.cs@gmail.com>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/slimbus/core.c b/drivers/slimbus/core.c
+index 4988a8f4d905..7ddfc675b131 100644
+--- a/drivers/slimbus/core.c
++++ b/drivers/slimbus/core.c
+@@ -141,7 +141,7 @@ static struct slim_device *slim_alloc_device(struct slim_controller *ctrl,
+ 	sbdev->e_addr = *eaddr;
+ 	ret = slim_add_device(ctrl, sbdev, node);
+ 	if (ret) {
+-		kfree(sbdev);
++		put_device(&sbdev->dev);
+ 		return NULL;
+ 	}
+ 
+-- 
+2.24.1
+

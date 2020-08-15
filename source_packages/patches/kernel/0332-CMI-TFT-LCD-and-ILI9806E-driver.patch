@@ -1,0 +1,1599 @@
+From 06cb59a992e1be847b45c09ae2d9dcf37160f06f Mon Sep 17 00:00:00 2001
+From: jguo <jguo@intrinsyc.com>
+Date: Mon, 30 Dec 2019 12:23:46 -0800
+Subject: [PATCH 332/334] CMI TFT LCD and ILI9806E driver.
+
+1. port ILI9806E driver.
+2. chose different panel when kernel boot.
+3. can set plane modeset property from specific panel module.
+
+Change-Id: I545de616965382895817cfc371d005ec149dfe70
+---
+ arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi |   31 +-
+ arch/arm64/configs/defconfig                 |    1 +
+ drivers/gpu/drm/drm_fb_helper.c              |   13 +-
+ drivers/gpu/drm/drm_mipi_dsi.c               |  112 ++
+ drivers/gpu/drm/msm/dsi/dsi_host.c           |   75 +-
+ drivers/gpu/drm/msm/mdp/mdp5/mdp5_plane.c    |   34 +-
+ drivers/gpu/drm/panel/Kconfig                |    9 +
+ drivers/gpu/drm/panel/Makefile               |    1 +
+ drivers/gpu/drm/panel/panel-lcd-ili9806e.c   | 1053 ++++++++++++++++++
+ include/drm/drm_mipi_dsi_panel_select.h      |   41 +
+ 10 files changed, 1349 insertions(+), 21 deletions(-)
+ create mode 100644 drivers/gpu/drm/panel/panel-lcd-ili9806e.c
+ create mode 100644 include/drm/drm_mipi_dsi_panel_select.h
+
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi b/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
+index 478a4089c1a3..25849a17fbe6 100644
+--- a/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
++++ b/arch/arm64/boot/dts/qcom/apq8096-db820c.dtsi
+@@ -329,7 +329,7 @@
+ 				status = "okay";
+ 				panel@0 {
+ 					reg = <0>;
+-					compatible = "osd,45t2906";
++					compatible = "lcd,ili9806e";
+ 					vdd-supply = <&pm8994_l22>;
+ 					dsi-lanes = <2>;
+ 					panel-width-mm = <55>;
+@@ -349,12 +349,39 @@
+ 					};
+ 				};
+ 
++				panel@1 {
++					reg = <0>;
++					compatible = "osd,45t2906";
++					vdd-supply = <&pm8994_l22>;
++					dsi-lanes = <2>;
++					panel-width-mm = <55>;
++					panel-height-mm = <98>;
++					pwm-gpio = <&pm8994_gpios 5 0>;
++					panel-reset-gpio = <&msmgpio 8 0>;
++					backlight-gpio = <&msmgpio 135 0>;
++					te-gpio = <&msmgpio 10 0>;
++					status = "okay";
++					port {
++						#address-cells = <1>;
++						#size-cells = <0>;
++
++						panel1_in: endpoint {
++							remote-endpoint = <&dsi0_out>;
++						};
++					};
++				};
++
+ 				ports {
+ 					port@1 {
+-						endpoint {
++						reg = <0x1>;
++						endpoint@0  {
+ 							remote-endpoint = <&panel0_in>;
+ 							data-lanes = <0 1 2 3>;
+ 						};
++						endpoint@1  {
++							remote-endpoint = <&panel1_in>;
++							data-lanes = <0 1 2 3>;
++						};
+ 					};
+ 				};
+ 			};
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index 7dbe49cb0040..1284d58ca236 100644
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -665,3 +665,4 @@ CONFIG_SND_SOC_WCD9335=y
+ CONFIG_REGMAP_SLIMBUS=y
+ CONFIG_R8169=m
+ CONFIG_DRM_PANEL_OSD_45T2906=m
++CONFIG_DRM_PANEL_LCD_ILI9806E=m
+\ No newline at end of file
+diff --git a/drivers/gpu/drm/drm_fb_helper.c b/drivers/gpu/drm/drm_fb_helper.c
+index 5e93589c335c..2d36ca50a6cc 100644
+--- a/drivers/gpu/drm/drm_fb_helper.c
++++ b/drivers/gpu/drm/drm_fb_helper.c
+@@ -355,6 +355,7 @@ static int restore_fbdev_mode_atomic(struct drm_fb_helper *fb_helper, bool activ
+ 	int i, ret;
+ 	unsigned int plane_mask;
+ 	struct drm_modeset_acquire_ctx ctx;
++	uint64_t val = 0;
+ 
+ 	drm_modeset_acquire_init(&ctx, 0);
+ 
+@@ -376,8 +377,16 @@ static int restore_fbdev_mode_atomic(struct drm_fb_helper *fb_helper, bool activ
+ 			goto out_state;
+ 		}
+ 
+-		plane_state->rotation = DRM_MODE_ROTATE_0;
+-
++		if (plane->rotation_property)
++		{
++			plane->funcs->atomic_get_property(plane, plane_state,
++						plane->rotation_property, &val);
++			plane_state->rotation =	val;
++		}
++		else
++		{
++			plane_state->rotation = DRM_MODE_ROTATE_0;
++		}
+ 		plane->old_fb = plane->fb;
+ 		plane_mask |= 1 << drm_plane_index(plane);
+ 
+diff --git a/drivers/gpu/drm/drm_mipi_dsi.c b/drivers/gpu/drm/drm_mipi_dsi.c
+index 4b47226b90d4..b4b5248c8741 100644
+--- a/drivers/gpu/drm/drm_mipi_dsi.c
++++ b/drivers/gpu/drm/drm_mipi_dsi.c
+@@ -26,6 +26,7 @@
+  */
+ 
+ #include <drm/drm_mipi_dsi.h>
++#include <drm/drm_mipi_dsi_panel_select.h>
+ 
+ #include <linux/device.h>
+ #include <linux/module.h>
+@@ -35,6 +36,49 @@
+ 
+ #include <video/mipi_display.h>
+ 
++#define MAX_MDSS_DSI_LEN 		256
++
++char saved_cmd_line[MAX_MDSS_DSI_LEN];
++
++#define SUB_MDSS_LEN		14
++char sub_mdss[] = "qcom,mdss_dsi_"; //total 14 letters, can not use strlen in kernel
++
++void get_select_panel_from_cmdline(void)
++{
++
++	char				*ch = NULL;
++	char				*cp = NULL;
++	char				*panel = NULL;
++	int				i = 0;
++
++	if (saved_cmd_line[0] != '\0')
++	{
++		panel = strstr(saved_cmd_line, sub_mdss);
++		panel = panel + SUB_MDSS_LEN;
++		ch = strchr(panel, ':');
++		for(cp = panel;cp < ch; cp++)
++		{
++			select_panel[i++] = *cp;
++		}
++
++		select_panel[i] = '\0';
++		pr_debug("%s\n", select_panel);
++
++		return;
++	}
++
++	pr_err("(%s)(%d) can not get dsi panel from command line\n", __func__, __LINE__);
++}
++
++static int __init mdss_dsi_get_panel_setup(char *str)
++{
++	strncpy(saved_cmd_line, str, MAX_MDSS_DSI_LEN - 1);
++
++	return 0;
++}
++__setup("mdss_mdp.panel=", mdss_dsi_get_panel_setup);
++
++
+ /**
+  * DOC: dsi helpers
+  *
+@@ -189,6 +233,42 @@ of_mipi_dsi_device_add(struct mipi_dsi_host *host, struct device_node *node)
+ }
+ #endif
+ 
++bool is_panel_selected(struct panel_list supp_panels[],
++			  uint32_t supp_panels_size,
++			  const char *d_name, int choice)
++{
++	uint32_t i;
++
++	if (!d_name) {
++		pr_err("Invalid driver name\n");
++		return false;
++	}
++
++	get_select_panel_from_cmdline();
++	for (i = 0; i < supp_panels_size; i++) {
++		pr_debug(">>> %s <<< %s >>>> %s <<<\n",
++				d_name, supp_panels[i].driver_name, supp_panels[i].name);
++		switch (choice)
++		{
++			case SELECT_DEVICE:
++				if (!strncmp(d_name, supp_panels[i].device_name,
++					MAX_PANEL_ID_LEN)) {
++					if (!strncmp(select_panel, supp_panels[i].name, MAX_PANEL_ID_LEN))
++					return true;
++				}
++			case SELECT_DRIVER:
++				if (!strncmp(d_name, supp_panels[i].driver_name,
++					MAX_PANEL_ID_LEN)) {
++					if (!strncmp(select_panel, supp_panels[i].name, MAX_PANEL_ID_LEN))
++					return true;
++				}
++		}
++	}
++
++	return false;
++}
++EXPORT_SYMBOL(is_panel_selected);
++
+ /**
+  * mipi_dsi_device_register_full - create a MIPI DSI device
+  * @host: DSI host to which this device is connected
+@@ -208,12 +288,24 @@ mipi_dsi_device_register_full(struct mipi_dsi_host *host,
+ 	struct mipi_dsi_device *dsi;
+ 	struct device *dev = host->dev;
+ 	int ret;
++	bool select = false;
++	const char *data = NULL;
+ 
+ 	if (!info) {
+ 		dev_err(dev, "invalid mipi_dsi_device_info pointer\n");
+ 		return ERR_PTR(-EINVAL);
+ 	}
+ 
++	/* get select device node */
++	data = of_get_property(info->node, "compatible", NULL);
++	if (data) {
++		select =  is_panel_selected(dsi_supp_panels,
++				ARRAY_SIZE(dsi_supp_panels), data, SELECT_DEVICE);
++	}
++
++	if (!select)
++		return ERR_PTR(-EINVAL);
++
+ 	if (info->channel > 3) {
+ 		dev_err(dev, "invalid virtual channel: %u\n", info->channel);
+ 		return ERR_PTR(-EINVAL);
+@@ -285,11 +377,24 @@ EXPORT_SYMBOL(of_find_mipi_dsi_host_by_node);
+ int mipi_dsi_host_register(struct mipi_dsi_host *host)
+ {
+ 	struct device_node *node;
++	bool select = false;
++	const char *data;
+ 
+ 	for_each_available_child_of_node(host->dev->of_node, node) {
+ 		/* skip nodes without reg property */
+ 		if (!of_find_property(node, "reg", NULL))
+ 			continue;
++
++		/* get select device node */
++		data = of_get_property(node, "compatible", NULL);
++		if (data) {
++			select =  is_panel_selected(dsi_supp_panels,
++					ARRAY_SIZE(dsi_supp_panels), data, SELECT_DEVICE);
++		}
++
++		if (!select)
++			continue;
++
+ 		of_mipi_dsi_device_add(host, node);
+ 	}
+ 
+@@ -1124,9 +1229,16 @@ static void mipi_dsi_drv_shutdown(struct device *dev)
+ int mipi_dsi_driver_register_full(struct mipi_dsi_driver *drv,
+ 				  struct module *owner)
+ {
++	bool select = false;
++
++	select = is_panel_selected(dsi_supp_panels, ARRAY_SIZE(dsi_supp_panels),
++			drv->driver.name, SELECT_DRIVER);
+ 	drv->driver.bus = &mipi_dsi_bus_type;
+ 	drv->driver.owner = owner;
+ 
++	if (!select)
++		return -1;
++
+ 	if (drv->probe)
+ 		drv->driver.probe = mipi_dsi_drv_probe;
+ 	if (drv->remove)
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+index 96cf1f9c2b89..a1dedd0ae0c0 100644
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -10,6 +10,7 @@
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  * GNU General Public License for more details.
+  */
++#include <drm/drm_mipi_dsi_panel_select.h>
+ 
+ #include <linux/clk.h>
+ #include <linux/delay.h>
+@@ -1628,12 +1629,36 @@ static int dsi_host_parse_lane_data(struct msm_dsi_host *msm_host,
+ 	return -EINVAL;
+ }
+ 
++static bool is_the_panel(struct device_node *panel_node)
++{
++	bool select = false;
++	const char *data = NULL;
++
++	if (!panel_node) {
++		pr_err("invalid panel node pointer\n");
++		return false;
++	}
++
++	/* get select device node */
++	data = of_get_property(panel_node, "compatible", NULL);
++	if (data) {
++		select =  is_panel_selected(dsi_supp_panels,
++				ARRAY_SIZE(dsi_supp_panels), data, SELECT_DEVICE);
++	}
++
++	if (!select)
++		return false;
++
++	return true;
++}
++
+ static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
+ {
+ 	struct device *dev = &msm_host->pdev->dev;
+ 	struct device_node *np = dev->of_node;
+ 	struct device_node *endpoint, *device_node;
+-	int ret = 0;
++	struct device_node *port_node, *child_node = NULL, *remote = NULL;
++	int ret = 0, i = 0;
+ 
+ 	/*
+ 	 * Get the endpoint of the output port of the DSI host. In our case,
+@@ -1641,28 +1666,48 @@ static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
+ 	 * the remote endpoint isn't defined. It's possible that there is
+ 	 * nothing connected to the dsi output.
+ 	 */
+-	endpoint = of_graph_get_endpoint_by_regs(np, 1, -1);
++	endpoint = of_graph_get_endpoint_by_regs(np, 1, 0);
+ 	if (!endpoint) {
+-		dev_dbg(dev, "%s: no endpoint\n", __func__);
+-		return 0;
++		pr_err("no valid endpoint (%d, %d) for node %pOF\n",
++			 1, 0, np);
+ 	}
+ 
+-	ret = dsi_host_parse_lane_data(msm_host, endpoint);
+-	if (ret) {
+-		dev_err(dev, "%s: invalid lane configuration %d\n",
+-			__func__, ret);
+-		goto err;
++	port_node = of_get_parent(endpoint);
++
++	for (i = 0;;i++)
++	{
++		child_node = of_get_next_child(port_node, child_node);
++		if (!child_node)
++			break;
++
++		ret = dsi_host_parse_lane_data(msm_host, child_node);
++		if (ret) {
++			dev_err(dev, "%s: invalid lane configuration %d\n",
++				__func__, ret);
++		}
++		// get remote
++		remote = of_graph_get_remote_port_parent(child_node);
++		of_node_put(child_node);
++		if (!remote) {
++			pr_err("no valid remote node\n");
++			continue;
++		}
++
++		if (is_the_panel(remote))
++		{
++			pr_err("valid remote: %s for node %pOF\n",
++				 remote->full_name, child_node);
++			break;
++		}
++
+ 	}
+ 
+-	/* Get panel node from the output port's endpoint data */
+-	device_node = of_graph_get_remote_node(np, 1, 0);
+-	if (!device_node) {
+-		dev_dbg(dev, "%s: no valid device\n", __func__);
++	if (!of_device_is_available(remote)) {
++		pr_err("not available for remote node\n");
+ 		goto err;
+ 	}
+ 
+-	msm_host->device_node = device_node;
+-
++	msm_host->device_node = remote;
+ 	if (of_property_read_bool(np, "syscon-sfpb")) {
+ 		msm_host->sfpb = syscon_regmap_lookup_by_phandle(np,
+ 					"syscon-sfpb");
+diff --git a/drivers/gpu/drm/msm/mdp/mdp5/mdp5_plane.c b/drivers/gpu/drm/msm/mdp/mdp5/mdp5_plane.c
+index be50445f9901..a126b9c00982 100644
+--- a/drivers/gpu/drm/msm/mdp/mdp5/mdp5_plane.c
++++ b/drivers/gpu/drm/msm/mdp/mdp5/mdp5_plane.c
+@@ -112,10 +112,25 @@ static int mdp5_plane_atomic_set_property(struct drm_plane *plane,
+ 	struct drm_device *dev = plane->dev;
+ 	struct mdp5_plane_state *pstate;
+ 	struct msm_drm_private *dev_priv = dev->dev_private;
+-	int ret = 0;
++	int i =0, ret = 0;
++	struct drm_mode_object *obj = &plane->base;
++	int count = obj->properties->count;
+ 
+ 	pstate = to_mdp5_plane_state(state);
+ 
++	/* chose drm_mode_object instead of plane->rotation_property, so
++	 * that we have more flexible way to change modeset property in each
++	 * panel module.
++	 */
++	for (i = 0; i < count; i++)
++	{
++		if (obj->properties->properties[i] == property)
++		{
++			obj->properties->values[i] = val;
++			goto done;
++		}
++	}
++
+ #define SET_PROPERTY(name, NAME, type) do { \
+ 		if (dev_priv->plane_property[PLANE_PROP_##NAME] == property) { \
+ 			pstate->name = (type)val; \
+@@ -140,10 +155,25 @@ static int mdp5_plane_atomic_get_property(struct drm_plane *plane,
+ 	struct drm_device *dev = plane->dev;
+ 	struct mdp5_plane_state *pstate;
+ 	struct msm_drm_private *dev_priv = dev->dev_private;
+-	int ret = 0;
++	int i = 0, ret = 0;
++	struct drm_mode_object *obj = &plane->base;
++	int count = obj->properties->count;
+ 
+ 	pstate = to_mdp5_plane_state(state);
+ 
++	/* chose drm_mode_object instead of plane->rotation_property, so
++	 * that we have more flexible way to change modeset property in each
++	 * panel module.
++	 */
++	for (i = 0; i < count; i++)
++	{
++		if (obj->properties->properties[i] == property)
++		{
++			*val = obj->properties->values[i];
++			goto done;
++		}
++	}
++
+ #define GET_PROPERTY(name, NAME, type) do { \
+ 		if (dev_priv->plane_property[PLANE_PROP_##NAME] == property) { \
+ 			*val = pstate->name; \
+diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
+index baec5484b9ab..9afc3f9d7a53 100644
+--- a/drivers/gpu/drm/panel/Kconfig
++++ b/drivers/gpu/drm/panel/Kconfig
+@@ -126,4 +126,13 @@ config DRM_PANEL_OSD_45T2906
+ 	  Say Y here if you want to enable support for OSD 45T2906 FWVGA
+ 	  (480x854) DSI panel
+ 
++config DRM_PANEL_LCD_ILI9806E
++	tristate "LCD ILI9806E FWVGA panel"
++	depends on OF
++	depends on DRM_MIPI_DSI
++	depends on BACKLIGHT_CLASS_DEVICE
++	help
++	  Say Y here if you want to enable support for LCD ILI9806E FWVGA
++	  (480x854) DSI panel
++
+ endmenu
+diff --git a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
+index e1f8262eaa71..828bfc545dd4 100644
+--- a/drivers/gpu/drm/panel/Makefile
++++ b/drivers/gpu/drm/panel/Makefile
+@@ -12,3 +12,4 @@ obj-$(CONFIG_DRM_PANEL_SHARP_LQ101R1SX01) += panel-sharp-lq101r1sx01.o
+ obj-$(CONFIG_DRM_PANEL_SHARP_LS043T1LE01) += panel-sharp-ls043t1le01.o
+ obj-$(CONFIG_DRM_PANEL_SITRONIX_ST7789V) += panel-sitronix-st7789v.o
+ obj-$(CONFIG_DRM_PANEL_OSD_45T2906) += panel-osd-45t2906.o
++obj-$(CONFIG_DRM_PANEL_LCD_ILI9806E) += panel-lcd-ili9806e.o
+diff --git a/drivers/gpu/drm/panel/panel-lcd-ili9806e.c b/drivers/gpu/drm/panel/panel-lcd-ili9806e.c
+new file mode 100644
+index 000000000000..1b3e3bf30fa8
+--- /dev/null
++++ b/drivers/gpu/drm/panel/panel-lcd-ili9806e.c
+@@ -0,0 +1,1053 @@
++#include <linux/backlight.h>
++#include <linux/gpio/consumer.h>
++#include <linux/module.h>
++#include <linux/of_platform.h>
++#include <linux/platform_device.h>
++#include <linux/regulator/consumer.h>
++
++#include <drm/drmP.h>
++#include <drm/drm_crtc.h>
++#include <drm/drm_mipi_dsi.h>
++#include <drm/drm_panel.h>
++#include <drm/drm_atomic.h>
++
++#include <video/display_timing.h>
++#include <video/videomode.h>
++#include <video/mipi_display.h>
++
++// Manufacturer Command set pages
++/*---------------------------------------------------------------------------*/
++/* Panel on/off command information                                          */
++/*---------------------------------------------------------------------------*/
++static char ili9806e_fwvga_video_on_cmd0[] = {
++	0xFF, 0xFF, 0x98, 0x06,
++	0x04, 0x01,
++};
++
++static char ili9806e_fwvga_video_on_cmd1[] = {
++	0x08, 0x10,
++};
++
++static char ili9806e_fwvga_video_on_cmd2[] = {
++	0x21, 0x01,
++};
++
++static char ili9806e_fwvga_video_on_cmd3[] = {
++	0x30, 0x01,
++};
++
++static char ili9806e_fwvga_video_on_cmd4[] = {
++	0x31, 0x02,
++};
++
++static char ili9806e_fwvga_video_on_cmd5[] = {
++	0x40, 0x11,
++};
++
++static char ili9806e_fwvga_video_on_cmd6[] = {
++	0x41, 0x33,
++};
++
++static char ili9806e_fwvga_video_on_cmd7[] = {
++	0x42, 0x03,
++};
++
++static char ili9806e_fwvga_video_on_cmd8[] = {
++	0x43, 0x09,
++};
++
++static char ili9806e_fwvga_video_on_cmd9[] = {
++	0x44, 0x04,
++};
++
++static char ili9806e_fwvga_video_on_cmd10[] = {
++	0x50, 0x78,
++};
++
++static char ili9806e_fwvga_video_on_cmd11[] = {
++	0x51, 0x78,
++};
++
++static char ili9806e_fwvga_video_on_cmd12[] = {
++	0x52, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd13[] = {
++	0x53, 0x80,
++};
++
++static char ili9806e_fwvga_video_on_cmd14[] = {
++	0x57, 0x50,
++};
++
++static char ili9806e_fwvga_video_on_cmd15[] = {
++	0x60, 0x07,
++};
++
++static char ili9806e_fwvga_video_on_cmd16[] = {
++	0x61, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd17[] = {
++	0x62, 0x08,
++};
++
++static char ili9806e_fwvga_video_on_cmd18[] = {
++	0x63, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd19[] = {
++	0xA0, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd20[] = {
++	0xA1, 0x03,
++};
++
++static char ili9806e_fwvga_video_on_cmd21[] = {
++	0xA2, 0x06,
++};
++
++static char ili9806e_fwvga_video_on_cmd22[] = {
++	0xA3, 0x08,
++};
++
++static char ili9806e_fwvga_video_on_cmd23[] = {
++	0xA4, 0x01,
++};
++
++static char ili9806e_fwvga_video_on_cmd24[] = {
++	0xA5, 0x0C,
++};
++
++static char ili9806e_fwvga_video_on_cmd25[] = {
++	0xA6, 0x0D,
++};
++
++static char ili9806e_fwvga_video_on_cmd26[] = {
++	0xA7, 0x02, 
++};
++
++static char ili9806e_fwvga_video_on_cmd27[] = {
++	0xA8, 0x07, 
++};
++
++static char ili9806e_fwvga_video_on_cmd28[] = {
++	0xA9, 0x0B,
++};
++
++static char ili9806e_fwvga_video_on_cmd29[] = {
++	0xAA, 0x0F,
++};
++
++static char ili9806e_fwvga_video_on_cmd30[] = {
++	0xAB, 0x02,
++};
++
++static char ili9806e_fwvga_video_on_cmd31[] = {
++	0xAC, 0x04, 
++};
++
++static char ili9806e_fwvga_video_on_cmd32[] = {
++	0xAD, 0x15, 
++};
++
++static char ili9806e_fwvga_video_on_cmd33[] = {
++	0xAE, 0x10,
++};
++
++static char ili9806e_fwvga_video_on_cmd34[] = {
++	0xAF, 0x00, 
++};
++
++static char ili9806e_fwvga_video_on_cmd35[] = {
++	0xC0, 0x00, 
++};
++
++static char ili9806e_fwvga_video_on_cmd36[] = {
++	0xC1, 0x0C, 
++};
++
++static char ili9806e_fwvga_video_on_cmd37[] = {
++	0xC2, 0x13, 
++};
++
++static char ili9806e_fwvga_video_on_cmd38[] = {
++	0xC3, 0x11,
++};
++
++static char ili9806e_fwvga_video_on_cmd39[] = {
++	0xC4, 0x09,
++};
++
++static char ili9806e_fwvga_video_on_cmd40[] = {
++	0xC5, 0x06,
++};
++
++static char ili9806e_fwvga_video_on_cmd41[] = {
++	0xC6, 0x04,
++};
++
++static char ili9806e_fwvga_video_on_cmd42[] = {
++	0xC7, 0x07,
++};
++
++static char ili9806e_fwvga_video_on_cmd43[] = {
++	0xC8, 0x07,
++};
++
++static char ili9806e_fwvga_video_on_cmd44[] = {
++	0xC9, 0x09,
++};
++
++static char ili9806e_fwvga_video_on_cmd45[] = {
++	0xCA, 0x15,
++};
++
++static char ili9806e_fwvga_video_on_cmd46[] = {
++	0xCB, 0x0D,
++};
++
++static char ili9806e_fwvga_video_on_cmd47[] = {
++	0xCC, 0x13,
++};
++
++static char ili9806e_fwvga_video_on_cmd48[] = {
++	0xCD, 0x21, 
++};
++
++static char ili9806e_fwvga_video_on_cmd49[] = {
++	0xCE, 0x14,
++};
++
++static char ili9806e_fwvga_video_on_cmd50[] = {
++	0xCF, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd51[] = {
++	0xFF, 0xFF, 0x98, 0x06,
++	0x04, 0x06,
++};
++
++static char ili9806e_fwvga_video_on_cmd52[] = {
++	0x00, 0x20, 
++};
++
++static char ili9806e_fwvga_video_on_cmd53[] = {
++	0x01, 0x04,
++};
++
++static char ili9806e_fwvga_video_on_cmd54[] = {
++	0x02, 0x00, 
++};
++
++static char ili9806e_fwvga_video_on_cmd55[] = {
++	0x03, 0x0A, 
++};
++
++static char ili9806e_fwvga_video_on_cmd56[] = {
++	0x04, 0x09,
++};
++
++static char ili9806e_fwvga_video_on_cmd57[] = {
++	0x05, 0x09,
++};
++
++static char ili9806e_fwvga_video_on_cmd58[] = {
++	0x06, 0x98,
++};
++
++static char ili9806e_fwvga_video_on_cmd59[] = {
++	0x07, 0x02,
++};
++
++static char ili9806e_fwvga_video_on_cmd60[] = {
++	0x08, 0x07,
++};
++
++static char ili9806e_fwvga_video_on_cmd61[] = {
++	0x09, 0x80,
++};
++
++static char ili9806e_fwvga_video_on_cmd62[] = {
++	0x0A, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd63[] = {
++	0x0B, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd64[] = {
++	0x0C, 0x09,
++};
++
++static char ili9806e_fwvga_video_on_cmd65[] = {
++	0x0D, 0x09,
++};
++
++static char ili9806e_fwvga_video_on_cmd66[] = {
++	0x0E, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd67[] = {
++	0x0F, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd68[] = {
++	0x10, 0x77,
++};
++
++static char ili9806e_fwvga_video_on_cmd69[] = {
++	0x11, 0xF0,
++};
++
++static char ili9806e_fwvga_video_on_cmd70[] = {
++	0x12, 0x01,
++};
++
++static char ili9806e_fwvga_video_on_cmd71[] = {
++	0x13, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd72[] = {
++	0x14, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd73[] = {
++	0x15, 0x43,
++};
++
++static char ili9806e_fwvga_video_on_cmd74[] = {
++	0x16, 0x0B,
++};
++
++static char ili9806e_fwvga_video_on_cmd75[] = {
++	0x17, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd76[] = {
++	0x18, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd77[] = {
++	0x19, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd78[] = {
++	0x1A, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd79[] = {
++	0x1B, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd80[] = {
++	0x1C, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd81[] = {
++	0x1D, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd82[] = {
++	0x20, 0x01,
++};
++
++static char ili9806e_fwvga_video_on_cmd83[] = {
++	0x21, 0x23,
++};
++
++static char ili9806e_fwvga_video_on_cmd84[] = {
++	0x22, 0x45,
++};
++
++static char ili9806e_fwvga_video_on_cmd85[] = {
++	0x23, 0x67,
++};
++
++static char ili9806e_fwvga_video_on_cmd86[] = {
++	0x24, 0x01,
++};
++
++static char ili9806e_fwvga_video_on_cmd87[] = {
++	0x25, 0x23,
++};
++
++static char ili9806e_fwvga_video_on_cmd88[] = {
++	0x26, 0x45,
++};
++
++static char ili9806e_fwvga_video_on_cmd89[] = {
++	0x27, 0x67,
++};
++
++static char ili9806e_fwvga_video_on_cmd90[] = {
++	0x30, 0x13,
++};
++
++static char ili9806e_fwvga_video_on_cmd91[] = {
++	0x31, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd92[] = {
++	0x32, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd93[] = {
++	0x33, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd94[] = {
++	0x34, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd95[] = {
++	0x35, 0xBB,
++};
++
++static char ili9806e_fwvga_video_on_cmd96[] = {
++	0x36, 0xAA,
++};
++
++static char ili9806e_fwvga_video_on_cmd97[] = {
++	0x37, 0xDD,
++};
++
++static char ili9806e_fwvga_video_on_cmd98[] = {
++	0x38, 0xCC,
++};
++
++static char ili9806e_fwvga_video_on_cmd99[] = {
++	0x39, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd100[] = {
++	0x3A, 0x66,
++};
++
++static char ili9806e_fwvga_video_on_cmd101[] = {
++	0x3B, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd102[] = {
++	0x3C, 0x88,
++};
++
++static char ili9806e_fwvga_video_on_cmd103[] = {
++	0x3D, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd104[] = {
++	0x3E, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd105[] = {
++	0x3F, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd106[] = {
++	0x40, 0x22,
++};
++
++static char ili9806e_fwvga_video_on_cmd107[] = {
++	0xFF, 0xFF, 0x98, 0x06,
++	0x04, 0x07, 
++};
++
++static char ili9806e_fwvga_video_on_cmd108[] = {
++	0x18, 0x1D,
++};
++
++static char ili9806e_fwvga_video_on_cmd109[] = {
++	0x02, 0x77,
++};
++
++static char ili9806e_fwvga_video_on_cmd110[] = {
++	0x06, 0x13,
++};
++
++static char ili9806e_fwvga_video_on_cmd111[] = {
++	0xFF, 0xFF, 0x98, 0x06,
++	0x04, 0x06,
++};
++
++static char ili9806e_fwvga_video_on_cmd112[] = {
++	0x52, 0x10,
++};
++
++static char ili9806e_fwvga_video_on_cmd113[] = {
++	0x53, 0x10,
++};
++
++static char ili9806e_fwvga_video_on_cmd114[] = {
++	0xFF, 0xFF, 0x98, 0x06,
++	0x04, 0x00,
++};
++
++static char ili9806e_fwvga_video_on_cmd115[] = {
++	0x20, 0x00,
++};
++
++static struct mipi_dsi_cmd {
++	size_t size;
++	char *payload;
++	int wait;
++} ili9806e_fwvga_video_on_cmd[] = {
++		{sizeof(ili9806e_fwvga_video_on_cmd0), ili9806e_fwvga_video_on_cmd0, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd1), ili9806e_fwvga_video_on_cmd1, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd2), ili9806e_fwvga_video_on_cmd2, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd3), ili9806e_fwvga_video_on_cmd3, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd4), ili9806e_fwvga_video_on_cmd4, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd5), ili9806e_fwvga_video_on_cmd5, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd6), ili9806e_fwvga_video_on_cmd6, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd7), ili9806e_fwvga_video_on_cmd7, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd8), ili9806e_fwvga_video_on_cmd8, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd9), ili9806e_fwvga_video_on_cmd9, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd10), ili9806e_fwvga_video_on_cmd10, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd11), ili9806e_fwvga_video_on_cmd11, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd11), ili9806e_fwvga_video_on_cmd12, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd13), ili9806e_fwvga_video_on_cmd13, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd14), ili9806e_fwvga_video_on_cmd14, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd15), ili9806e_fwvga_video_on_cmd15, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd16), ili9806e_fwvga_video_on_cmd16, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd17), ili9806e_fwvga_video_on_cmd17, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd18), ili9806e_fwvga_video_on_cmd18, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd19), ili9806e_fwvga_video_on_cmd19, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd20), ili9806e_fwvga_video_on_cmd20, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd21), ili9806e_fwvga_video_on_cmd21, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd22), ili9806e_fwvga_video_on_cmd22, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd23), ili9806e_fwvga_video_on_cmd23, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd24), ili9806e_fwvga_video_on_cmd24, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd25), ili9806e_fwvga_video_on_cmd25, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd26), ili9806e_fwvga_video_on_cmd26, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd27), ili9806e_fwvga_video_on_cmd27, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd28), ili9806e_fwvga_video_on_cmd28, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd29), ili9806e_fwvga_video_on_cmd29, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd29), ili9806e_fwvga_video_on_cmd30, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd31), ili9806e_fwvga_video_on_cmd31, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd32), ili9806e_fwvga_video_on_cmd32, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd33), ili9806e_fwvga_video_on_cmd33, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd34), ili9806e_fwvga_video_on_cmd34, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd35), ili9806e_fwvga_video_on_cmd35, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd36), ili9806e_fwvga_video_on_cmd36, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd37), ili9806e_fwvga_video_on_cmd37, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd38), ili9806e_fwvga_video_on_cmd38, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd39), ili9806e_fwvga_video_on_cmd39, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd40), ili9806e_fwvga_video_on_cmd40, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd41), ili9806e_fwvga_video_on_cmd41, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd42), ili9806e_fwvga_video_on_cmd42, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd43), ili9806e_fwvga_video_on_cmd43, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd44), ili9806e_fwvga_video_on_cmd44, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd45), ili9806e_fwvga_video_on_cmd45, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd46), ili9806e_fwvga_video_on_cmd46, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd47), ili9806e_fwvga_video_on_cmd47, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd48), ili9806e_fwvga_video_on_cmd48, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd49), ili9806e_fwvga_video_on_cmd49, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd50), ili9806e_fwvga_video_on_cmd50, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd51), ili9806e_fwvga_video_on_cmd51, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd52), ili9806e_fwvga_video_on_cmd52, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd53), ili9806e_fwvga_video_on_cmd53, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd54), ili9806e_fwvga_video_on_cmd54, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd55), ili9806e_fwvga_video_on_cmd55, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd56), ili9806e_fwvga_video_on_cmd56, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd57), ili9806e_fwvga_video_on_cmd57, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd58), ili9806e_fwvga_video_on_cmd58, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd59), ili9806e_fwvga_video_on_cmd59, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd60), ili9806e_fwvga_video_on_cmd60, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd61), ili9806e_fwvga_video_on_cmd61, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd62), ili9806e_fwvga_video_on_cmd62, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd63), ili9806e_fwvga_video_on_cmd63, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd64), ili9806e_fwvga_video_on_cmd64, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd65), ili9806e_fwvga_video_on_cmd65, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd66), ili9806e_fwvga_video_on_cmd66, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd67), ili9806e_fwvga_video_on_cmd67, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd68), ili9806e_fwvga_video_on_cmd68, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd69), ili9806e_fwvga_video_on_cmd69, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd70), ili9806e_fwvga_video_on_cmd70, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd71), ili9806e_fwvga_video_on_cmd71, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd72), ili9806e_fwvga_video_on_cmd72, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd73), ili9806e_fwvga_video_on_cmd73, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd74), ili9806e_fwvga_video_on_cmd74, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd75), ili9806e_fwvga_video_on_cmd75, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd76), ili9806e_fwvga_video_on_cmd76, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd77), ili9806e_fwvga_video_on_cmd77, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd78), ili9806e_fwvga_video_on_cmd78, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd79), ili9806e_fwvga_video_on_cmd79, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd80), ili9806e_fwvga_video_on_cmd80, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd81), ili9806e_fwvga_video_on_cmd81, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd82), ili9806e_fwvga_video_on_cmd82, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd83), ili9806e_fwvga_video_on_cmd83, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd84), ili9806e_fwvga_video_on_cmd84, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd85), ili9806e_fwvga_video_on_cmd85, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd86), ili9806e_fwvga_video_on_cmd86, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd87), ili9806e_fwvga_video_on_cmd87, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd88), ili9806e_fwvga_video_on_cmd88, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd89), ili9806e_fwvga_video_on_cmd89, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd90), ili9806e_fwvga_video_on_cmd90, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd91), ili9806e_fwvga_video_on_cmd91, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd92), ili9806e_fwvga_video_on_cmd92, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd93), ili9806e_fwvga_video_on_cmd93, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd94), ili9806e_fwvga_video_on_cmd94, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd95), ili9806e_fwvga_video_on_cmd95, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd96), ili9806e_fwvga_video_on_cmd96, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd97), ili9806e_fwvga_video_on_cmd97, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd98), ili9806e_fwvga_video_on_cmd98, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd99), ili9806e_fwvga_video_on_cmd99, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd100), ili9806e_fwvga_video_on_cmd100, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd101), ili9806e_fwvga_video_on_cmd101, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd102), ili9806e_fwvga_video_on_cmd102, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd103), ili9806e_fwvga_video_on_cmd103, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd104), ili9806e_fwvga_video_on_cmd104, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd105), ili9806e_fwvga_video_on_cmd105, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd106), ili9806e_fwvga_video_on_cmd106, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd107), ili9806e_fwvga_video_on_cmd107, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd108), ili9806e_fwvga_video_on_cmd108, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd109), ili9806e_fwvga_video_on_cmd109, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd110), ili9806e_fwvga_video_on_cmd110, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd111), ili9806e_fwvga_video_on_cmd111, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd112), ili9806e_fwvga_video_on_cmd112, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd113), ili9806e_fwvga_video_on_cmd113, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd114), ili9806e_fwvga_video_on_cmd114, 0x00},
++		{sizeof(ili9806e_fwvga_video_on_cmd115), ili9806e_fwvga_video_on_cmd115, 0x00},
++};
++
++struct osd_panel {
++	struct drm_panel base;
++	struct mipi_dsi_device *dsi;
++	struct regulator *supply;
++
++	struct gpio_desc *reset_gpio;
++	struct gpio_desc *backlight_gpio;
++	struct gpio_desc *pwm_gpio;
++	struct gpio_desc *te_gpio;
++	struct backlight_device *backlight;
++	bool prepared;
++	bool enabled;
++
++	u32 width_mm;
++	u32 height_mm;
++
++	const struct drm_display_mode *mode;
++};
++
++static int __maybe_unused osd_panel_set_Vflip(struct drm_panel *panel);
++
++static inline struct osd_panel *to_osd_panel(struct drm_panel *panel)
++{
++	return container_of(panel, struct osd_panel, base);
++}
++
++static int osd_panel_push_cmd_list(struct mipi_dsi_device *dsi)
++{
++	size_t count = sizeof(ili9806e_fwvga_video_on_cmd) / sizeof(struct mipi_dsi_cmd);
++	struct mipi_dsi_cmd *cmd;
++	int ret = 0, i;
++
++	for (i = 0; i < count; i++) {
++		cmd = &(ili9806e_fwvga_video_on_cmd[i]);
++		ret = mipi_dsi_dcs_write_buffer(dsi, cmd->payload, cmd->size);
++		if (ret < 0)
++			break;
++		msleep(cmd->wait);
++	}
++	return ret;
++};
++
++static const struct drm_display_mode ili9806e_mode = {
++	/* HS clock, (htotal * vtotal * vrefresh)/1000 */
++       .clock =  40320,
++       .hdisplay = 480,
++       .hsync_start = 480 + 200,
++       .hsync_end = 480 + 200 + 60,
++       .htotal = 480 + 200 + 60 + 10,
++       .vdisplay = 854,
++       .vsync_start = 854 + 20,
++       .vsync_end = 854 + 20 +20,
++       .vtotal = 854 + 20 + 20 + 2,
++       .vrefresh = 60,
++ 	/* FIX ME */
++      .width_mm = 55,
++      .height_mm = 98,
++};
++
++static int osd_panel_get_modes(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++	struct drm_display_mode *mode;
++
++	mode = drm_mode_duplicate(panel->drm, &ili9806e_mode);
++	if (!mode) {
++		DRM_DEV_ERROR(panel->drm->dev, "failed to add mode %u%ux@%u\n",
++			      ili9806e_mode.hdisplay, ili9806e_mode.vdisplay,
++			      ili9806e_mode.vrefresh);
++		return -ENOMEM;
++	}
++
++	drm_mode_set_name(mode);
++
++	drm_mode_probed_add(panel->connector, mode);
++
++	panel->connector->display_info.width_mm = osd->width_mm;
++	panel->connector->display_info.height_mm = osd->height_mm;
++
++	osd_panel_set_Vflip(panel);
++	return 1;
++}
++
++static int osd_panel_disable(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++
++	if (!osd->enabled)
++		return 0;
++
++	if (osd->backlight) {
++		osd->backlight->props.power = FB_BLANK_POWERDOWN;
++		backlight_update_status(osd->backlight);
++	}
++
++	osd->enabled = false;
++
++	return 0;
++}
++
++static int osd_panel_enable(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++
++	if (osd->enabled)
++		return 0;
++
++	if (osd->backlight) {
++		osd->backlight->props.power = FB_BLANK_UNBLANK;
++		backlight_update_status(osd->backlight);
++	}
++
++	osd->enabled = true;
++
++	return 0;
++}
++
++static int osd_panel_unprepare(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++	struct mipi_dsi_device *dsi = osd->dsi;
++	struct device *dev = &dsi->dev;
++	int ret;
++
++	if (!osd->prepared)
++		return 0;
++
++	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
++
++	ret = mipi_dsi_dcs_set_display_off(dsi);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "Failed to set display OFF (%d)\n", ret);
++
++	usleep_range(5000, 10000);
++
++	ret = mipi_dsi_dcs_enter_sleep_mode(dsi);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "Failed to enter sleep mode (%d)\n", ret);
++
++	usleep_range(10000, 15000);
++
++	ret = regulator_disable(osd->supply);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "regulator disable failed, %d\n", ret);
++
++	usleep_range(10000, 15000);
++
++	if (osd->reset_gpio != NULL) {
++		gpiod_set_value(osd->reset_gpio, 0);
++		usleep_range(10000, 15000);
++	}
++
++	if (osd->pwm_gpio != NULL) {
++		gpiod_set_value(osd->pwm_gpio, 0);
++		udelay(100);
++	};
++
++	if (osd->te_gpio != NULL) {
++		gpiod_set_value(osd->te_gpio, 0);
++		udelay(100);
++	};
++
++	if (osd->backlight_gpio != NULL) {
++		gpiod_set_value(osd->backlight_gpio, 0);
++		udelay(100);
++	};
++
++	osd->prepared = false;
++
++	return 0;
++}
++
++static int __maybe_unused osd_panel_set_Vflip(struct drm_panel *panel)
++{
++	struct drm_device *dev = panel->connector->dev;
++	struct drm_plane *plane;
++
++	if (dev)
++	{
++		drm_for_each_plane(plane, dev)
++		{
++			if (plane->rotation_property)
++			{
++				plane->funcs->atomic_set_property(plane, NULL,
++							plane->rotation_property, DRM_MODE_REFLECT_Y);
++			}
++		}
++	}
++
++	return 0;
++}
++
++static int osd_panel_prepare(struct drm_panel *panel)
++{
++	struct osd_panel *osd = to_osd_panel(panel);
++	struct mipi_dsi_device *dsi = osd->dsi;
++	struct device *dev = &dsi->dev;
++	int ret;
++
++	if (osd->prepared)
++		return 0;
++
++	ret = regulator_enable(osd->supply);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "regulator enable failed, %d\n", ret);
++		return ret;
++	}
++
++	if (osd->reset_gpio != NULL) {
++		gpiod_set_value(osd->reset_gpio, 1);
++		msleep(20);
++		gpiod_set_value(osd->reset_gpio, 0);
++		msleep(2);
++		gpiod_set_value(osd->reset_gpio, 1);
++		msleep(20);
++	}
++
++	if (osd->pwm_gpio != NULL) {
++		gpiod_set_value(osd->pwm_gpio, 1);
++		udelay(100);
++	};
++
++	if (osd->te_gpio != NULL) {
++		gpiod_set_value(osd->te_gpio, 1);
++		udelay(100);
++	};
++
++	if (osd->backlight_gpio != NULL) {
++		gpiod_set_value(osd->backlight_gpio, 1);
++		mdelay(5);
++	};
++
++	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
++
++	ret = osd_panel_push_cmd_list(dsi);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "Failed to send MCS (%d)\n", ret);
++		goto fail;
++	}
++
++	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "Failed to exit sleep mode (%d)\n", ret);
++		goto fail;
++	}
++
++	mdelay(240);
++
++	ret = mipi_dsi_dcs_set_display_on(dsi);
++	if (ret < 0) {
++		DRM_DEV_ERROR(dev, "Failed to set display ON (%d)\n", ret);
++		goto fail;
++	}
++
++	osd->prepared = true;
++
++	return 0;
++
++fail:
++	ret = regulator_disable(osd->supply);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "regulator disable failed, %d\n", ret);
++
++	if (osd->reset_gpio != NULL)
++		gpiod_set_value(osd->reset_gpio, 0);
++
++	if (osd->backlight_gpio != NULL)
++		gpiod_set_value(osd->backlight_gpio, 0);
++
++	return ret;
++}
++
++static const struct drm_panel_funcs osd_panel_funcs = {
++	.prepare = osd_panel_prepare,
++	.unprepare = osd_panel_unprepare,
++	.enable = osd_panel_enable,
++	.disable = osd_panel_disable,
++	.get_modes = osd_panel_get_modes,
++};
++
++static int osd_panel_add(struct osd_panel *panel)
++{
++	struct device *dev = &panel->dsi->dev;
++	int ret;
++
++	panel->mode = &ili9806e_mode;
++
++	panel->supply = devm_regulator_get(dev, "vdd");
++	if (IS_ERR(panel->supply))
++		return PTR_ERR(panel->supply);
++
++	panel->reset_gpio = devm_gpiod_get(dev, "panel-reset", GPIOD_OUT_LOW);
++
++	if (IS_ERR(panel->reset_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot get reset-gpios %ld\n",
++			      PTR_ERR(panel->reset_gpio));
++		panel->reset_gpio = NULL;
++	}
++	else
++		gpiod_set_value(panel->reset_gpio, 0);
++
++	panel->backlight_gpio = devm_gpiod_get(dev, "backlight", GPIOD_OUT_LOW);
++
++	if (IS_ERR(panel->backlight_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot backlight-gpios %ld\n",
++			      PTR_ERR(panel->backlight_gpio));
++		panel->backlight_gpio = NULL;
++	}
++	else
++		gpiod_set_value(panel->backlight_gpio, 0);
++
++	panel->pwm_gpio = devm_gpiod_get(dev, "pwm", GPIOD_OUT_LOW);
++
++	if (IS_ERR(panel->pwm_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot pwm-gpios %ld\n",
++			      PTR_ERR(panel->pwm_gpio));
++		panel->pwm_gpio = NULL;
++	}
++	else
++		gpiod_set_value(panel->pwm_gpio, 0);
++
++	panel->te_gpio = devm_gpiod_get(dev, "te", GPIOD_OUT_LOW);
++
++	if (IS_ERR(panel->te_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot te-gpios %ld\n",
++			      PTR_ERR(panel->te_gpio));
++		panel->te_gpio = NULL;
++	}
++	else
++		gpiod_set_value(panel->te_gpio, 0);
++
++	drm_panel_init(&panel->base);
++	panel->base.funcs = &osd_panel_funcs;
++	panel->base.dev = dev;
++
++	ret = drm_panel_add(&panel->base);
++	if (ret < 0)
++		goto put_backlight;
++
++	return 0;
++
++put_backlight:
++	if (panel->backlight)
++		put_device(&panel->backlight->dev);
++
++	return ret;
++};
++
++static int osd_panel_probe(struct mipi_dsi_device *dsi)
++{
++	struct device *dev = &dsi->dev;
++	struct osd_panel *panel;
++	struct device_node *np;
++	int ret;
++
++	dsi->format = MIPI_DSI_FMT_RGB888;
++	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_CLOCK_NON_CONTINUOUS;
++
++	panel = devm_kzalloc(&dsi->dev, sizeof(*panel), GFP_KERNEL);
++	if (!panel)
++		return -ENOMEM;
++
++	mipi_dsi_set_drvdata(dsi, panel);
++
++	panel->dsi = dsi;
++
++	np = dev->of_node;
++	ret = of_property_read_u32(np, "dsi-lanes", &dsi->lanes);
++	if (ret < 0) {
++		pr_err(">>>*** Failed to get dsi-lanes property (%d)\n", ret);
++		return ret;
++	}
++
++	of_property_read_u32(np, "panel-width-mm", &panel->width_mm);
++	of_property_read_u32(np, "panel-height-mm", &panel->height_mm);
++
++	ret = osd_panel_add(panel);
++	if (ret < 0)
++		return ret;
++
++	ret = mipi_dsi_attach(dsi);
++	if (ret < 0)
++	{
++		drm_panel_remove(&panel->base);
++		pr_err(">>> can not add panel<<<\n");
++	}
++
++	return ret;
++};
++
++static int osd_panel_remove(struct mipi_dsi_device *dsi)
++{
++	struct osd_panel *osd = mipi_dsi_get_drvdata(dsi);
++	struct device *dev = &dsi->dev;
++	int ret;
++
++	ret = osd_panel_disable(&osd->base);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "Failed to disable panel (%d)\n", ret);
++
++	ret = mipi_dsi_detach(dsi);
++	if (ret < 0)
++		DRM_DEV_ERROR(dev, "Failed to detach from host (%d)\n", ret);
++
++	drm_panel_detach(&osd->base);
++
++	if (osd->base.dev)
++		drm_panel_remove(&osd->base);
++
++	return 0;
++}
++
++static void osd_panel_shutdown(struct mipi_dsi_device *dsi)
++{
++	struct osd_panel *osd = mipi_dsi_get_drvdata(dsi);
++
++	osd_panel_disable(&osd->base);
++}
++
++static const struct of_device_id osd_of_match[] = {
++	{ .compatible = "lcd,ili9806e", },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, osd_of_match);
++
++static struct mipi_dsi_driver osd_panel_driver = {
++	.driver = {
++		.name = "panel-lcd-ili9806e",
++		.of_match_table = osd_of_match,
++	},
++	.probe = osd_panel_probe,
++	.remove = osd_panel_remove,
++	.shutdown = osd_panel_shutdown,
++};
++
++module_mipi_dsi_driver(osd_panel_driver);
++
++MODULE_AUTHOR("Intrinsyc");
++MODULE_DESCRIPTION("LCD ili9806e Panel");
++MODULE_LICENSE("GPL v2");
+diff --git a/include/drm/drm_mipi_dsi_panel_select.h b/include/drm/drm_mipi_dsi_panel_select.h
+new file mode 100644
+index 000000000000..db94782c414c
+--- /dev/null
++++ b/include/drm/drm_mipi_dsi_panel_select.h
+@@ -0,0 +1,41 @@
++#ifndef __DRM_MIPI_DSI_PANEL_SELECT_H__
++#define __DRM_MIPI_DSI_PANEL_SELECT_H__
++
++#include <asm/setup.h>
++#include <linux/device.h>
++
++/* For panel selection */
++#define MAX_PANEL_ID_LEN 64
++
++enum {
++	SELECT_DEVICE = 0,
++	SELECT_DRIVER = 1,
++};
++
++/*
++* will first chose device, and than match with driver, so
++* need to select both device and driver for specific panel.
++ */
++struct panel_list {
++	char name[MAX_PANEL_ID_LEN];/* parse from command line */
++	char device_name[MAX_PANEL_ID_LEN];/* get from compatible property of device tree */
++	char driver_name[MAX_PANEL_ID_LEN];/* the corresponding driver name */
++};
++
++char select_panel[MAX_PANEL_ID_LEN];
++
++/*
++ * The list of panels that are supported on this target.
++ * Any panel in this list can be selected using fastboot oem command.
++* In boot loader, fastboot oem select-display-panel jd9161_fwvga_video
++* correspond to {"jd9161_fwvga_vid", "osd,45t2906", "panel-osd-45t2906"},
++ */
++struct panel_list dsi_supp_panels[] = {
++	{"jd9161_fwvga_vid", "osd,45t2906", "panel-osd-45t2906"},
++	{"ili9806e_fwvga_vid", "lcd,ili9806e", "panel-lcd-ili9806e"},
++};
++
++bool is_panel_selected(struct panel_list supp_panels[],
++			  uint32_t supp_panels_size,
++			  const char *d_name, int choice);
++#endif
+-- 
+2.24.1
+

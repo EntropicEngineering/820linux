@@ -1,0 +1,35 @@
+From a5dbf9041d7a8693d273927ac666ec426d7f4584 Mon Sep 17 00:00:00 2001
+From: Mahaboob Vali <mvali@intrinsyc.com>
+Date: Thu, 16 Aug 2018 11:54:19 +0530
+Subject: [PATCH 005/334] [6857] spmi: pmic-arb: temp fix to set wakeups
+
+This is temporary fix for Suspend-To-Idle state.
+Currently the GIC v3 suspend and wakeup is not implemented in Linaro
+releases. The same should be implemented to achieve Suspend-To-Ram state.
+We need to revisit this change when STR is implemented.
+
+Change-Id: Ia82fd5c1e1bb550f10a25e7aa5b6964fb7d04d35
+---
+ drivers/spmi/spmi-pmic-arb.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/spmi/spmi-pmic-arb.c b/drivers/spmi/spmi-pmic-arb.c
+index 360b8218f322..6498a02176dc 100644
+--- a/drivers/spmi/spmi-pmic-arb.c
++++ b/drivers/spmi/spmi-pmic-arb.c
+@@ -647,7 +647,11 @@ static int qpnpint_irq_set_wake(struct irq_data *d, unsigned int on)
+ {
+ 	struct spmi_pmic_arb *pmic_arb = irq_data_get_irq_chip_data(d);
+ 
+-	return irq_set_irq_wake(pmic_arb->irq, on);
++	//return irq_set_irq_wake(pmic_arb->irq, on);
++
++	//FIX ME : the irq_set_irq_wake call to GIC is temporarily
++	//disabled bacuse GIC v3 doesn't support GIC suspend/wakeup
++	return 0;
+ }
+ 
+ static int qpnpint_get_irqchip_state(struct irq_data *d,
+-- 
+2.24.1
+

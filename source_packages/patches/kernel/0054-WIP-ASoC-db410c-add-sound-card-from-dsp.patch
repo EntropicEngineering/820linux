@@ -1,0 +1,353 @@
+From ecaf25b5fd91f4d50c42cb6a8de318be758f3cc9 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 8 Mar 2018 11:03:24 +0000
+Subject: [PATCH 054/334] WIP: ASoC: db410c: add sound card from dsp
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+
+Conflicts:
+	sound/soc/qcom/apq8016_sbc.c
+---
+ sound/soc/qcom/apq8016_sbc.c | 197 ++++++++++++++++++++++++++++++-----
+ 1 file changed, 172 insertions(+), 25 deletions(-)
+
+diff --git a/sound/soc/qcom/apq8016_sbc.c b/sound/soc/qcom/apq8016_sbc.c
+index 704428735e3c..904f087b5e29 100644
+--- a/sound/soc/qcom/apq8016_sbc.c
++++ b/sound/soc/qcom/apq8016_sbc.c
+@@ -15,22 +15,28 @@
+ #include <linux/device.h>
+ #include <linux/module.h>
+ #include <linux/kernel.h>
++#include <linux/component.h>
+ #include <linux/io.h>
+ #include <linux/of.h>
++#include <linux/of_address.h>
+ #include <linux/clk.h>
+ #include <linux/platform_device.h>
++#include <linux/soc/qcom/apr.h>
+ #include <sound/pcm.h>
+ #include <sound/pcm_params.h>
++#include <linux/dma-mapping.h>
+ #include <sound/jack.h>
+ #include <sound/soc.h>
+ #include <uapi/linux/input-event-codes.h>
+ #include <dt-bindings/sound/apq8016-lpass.h>
++#include "qdsp6/q6afe.h"
+ 
+ struct apq8016_sbc_data {
+ 	void __iomem *mic_iomux;
+ 	void __iomem *spkr_iomux;
+ 	struct snd_soc_jack jack;
+ 	bool jack_setup;
++	struct snd_soc_card *card;
+ 	struct snd_soc_dai_link dai_link[];	/* dynamically allocated */
+ };
+ 
+@@ -50,18 +56,18 @@ static int apq8016_sbc_dai_init(struct snd_soc_pcm_runtime *rtd)
+ 	int i, rval;
+ 
+ 	switch (cpu_dai->id) {
+-	case MI2S_PRIMARY:
++	case PRIMARY_MI2S_RX:
+ 		writel(readl(pdata->spkr_iomux) | SPKR_CTL_PRI_WS_SLAVE_SEL_11,
+ 			pdata->spkr_iomux);
+ 		break;
+ 
+-	case MI2S_QUATERNARY:
++	case QUATERNARY_MI2S_RX:
+ 		/* Configure the Quat MI2S to TLMM */
+ 		writel(readl(pdata->mic_iomux) | MIC_CTRL_QUA_WS_SLAVE_SEL_10 |
+ 			MIC_CTRL_TLMM_SCLK_EN,
+ 			pdata->mic_iomux);
+ 		break;
+-	case MI2S_TERTIARY:
++	case TERTIARY_MI2S_TX:
+ 		writel(readl(pdata->mic_iomux) | MIC_CTRL_TER_WS_SLAVE_SEL |
+ 			MIC_CTRL_TLMM_SCLK_EN,
+ 			pdata->mic_iomux);
+@@ -69,11 +75,15 @@ static int apq8016_sbc_dai_init(struct snd_soc_pcm_runtime *rtd)
+ 		break;
+ 
+ 	default:
+-		dev_err(card->dev, "unsupported cpu dai configuration\n");
++		dev_err(card->dev, "unsupported cpu dai id %d  configuration\n", cpu_dai->id);
+ 		return -EINVAL;
+ 
+ 	}
+ 
++	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
++	snd_soc_dai_set_sysclk(cpu_dai, LPAIF_BIT_CLK, 1536000, SNDRV_PCM_STREAM_PLAYBACK);
++	snd_soc_dai_set_sysclk(cpu_dai, LPAIF_DIG_CLK, 9600000, SNDRV_PCM_STREAM_PLAYBACK);
++
+ 	if (!pdata->jack_setup) {
+ 		struct snd_jack *jack;
+ 
+@@ -120,11 +130,39 @@ static int apq8016_sbc_dai_init(struct snd_soc_pcm_runtime *rtd)
+ 	return 0;
+ }
+ 
++static int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
++{
++	struct snd_soc_pcm_runtime *rtd = substream->private_data;
++	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
++
++	snd_soc_dai_set_sysclk(cpu_dai, LPAIF_DIG_CLK, 9600000, SNDRV_PCM_STREAM_PLAYBACK);
++	snd_soc_dai_set_sysclk(cpu_dai, LPAIF_BIT_CLK, 1536000, SNDRV_PCM_STREAM_PLAYBACK);
++	return 0;
++}
++
++static struct snd_soc_ops msm8x16_quat_mi2s_be_ops = {
++	.startup = msm_quat_mi2s_snd_startup,
++};
++
++static int msm8916_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
++					      struct snd_pcm_hw_params *params)
++{
++	struct snd_interval *rate = hw_param_interval(params,
++					SNDRV_PCM_HW_PARAM_RATE);
++	struct snd_interval *channels = hw_param_interval(params,
++					SNDRV_PCM_HW_PARAM_CHANNELS);
++
++	rate->min = rate->max = 48000;
++	channels->min = channels->max = 2;
++
++	return 0;
++}
++
+ static struct apq8016_sbc_data *apq8016_sbc_parse_of(struct snd_soc_card *card)
+ {
+ 	struct device *dev = card->dev;
+ 	struct snd_soc_dai_link *link;
+-	struct device_node *np, *codec, *cpu, *node  = dev->of_node;
++	struct device_node *np, *codec, *platform, *cpu, *node  = dev->of_node;
+ 	struct apq8016_sbc_data *data;
+ 	int ret, num_links;
+ 
+@@ -146,23 +184,28 @@ static struct apq8016_sbc_data *apq8016_sbc_parse_of(struct snd_soc_card *card)
+ 	/* Populate links */
+ 	num_links = of_get_child_count(node);
+ 
++	dev_info(dev, "Found %d child audio dai links..\n", num_links);
+ 	/* Allocate the private data and the DAI link array */
+-	data = devm_kzalloc(dev, sizeof(*data) + sizeof(*link) * num_links,
++	data = kzalloc(sizeof(*data) + sizeof(*link) * num_links,
+ 			    GFP_KERNEL);
+ 	if (!data)
+ 		return ERR_PTR(-ENOMEM);
+ 
++	component_bind_all(dev, data);
++
+ 	card->dai_link	= &data->dai_link[0];
+ 	card->num_links	= num_links;
+ 
+ 	link = data->dai_link;
+ 
+ 	for_each_child_of_node(node, np) {
++
+ 		cpu = of_get_child_by_name(np, "cpu");
++		platform = of_get_child_by_name(np, "platform");
+ 		codec = of_get_child_by_name(np, "codec");
+ 
+-		if (!cpu || !codec) {
+-			dev_err(dev, "Can't find cpu/codec DT node\n");
++		if (!cpu) {
++			dev_err(dev, "Can't find cpu DT node\n");
+ 			return ERR_PTR(-EINVAL);
+ 		}
+ 
+@@ -178,14 +221,37 @@ static struct apq8016_sbc_data *apq8016_sbc_parse_of(struct snd_soc_card *card)
+ 			return ERR_PTR(ret);
+ 		}
+ 
+-		ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
+-
+-		if (ret < 0) {
+-			dev_err(card->dev, "error getting codec dai name\n");
+-			return ERR_PTR(ret);
++		if (codec && platform) {
++			link->platform_of_node = of_parse_phandle(platform,
++								  "sound-dai",
++								   0);
++			if (!link->platform_of_node) {
++				dev_err(card->dev, "platform dai not found\n");
++				return ERR_PTR(-EINVAL);
++			}
++			ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
++
++			if (ret < 0) {
++				dev_err(card->dev, "error getting codec dai name\n");
++				return ERR_PTR(ret);
++			}
++			link->no_pcm = 1;
++			link->ignore_suspend = 1;
++			link->ignore_pmdown_time = 1;
++			link->be_hw_params_fixup = msm8916_be_hw_params_fixup;
++			link->init = apq8016_sbc_dai_init;
++			link->ops = &msm8x16_quat_mi2s_be_ops;
++		} else {
++			link->platform_of_node = link->cpu_of_node;
++			link->codec_of_node	= NULL;
++			link->codec_dai_name	= "snd-soc-dummy-dai";
++			link->codec_name	= "snd-soc-dummy";
++			link->dynamic	= 1;
+ 		}
+ 
+-		link->platform_of_node = link->cpu_of_node;
++		link->dpcm_playback = 1;
++		link->dpcm_capture = 1;
++
+ 		ret = of_property_read_string(np, "link-name", &link->name);
+ 		if (ret) {
+ 			dev_err(card->dev, "error getting codec dai_link name\n");
+@@ -193,7 +259,6 @@ static struct apq8016_sbc_data *apq8016_sbc_parse_of(struct snd_soc_card *card)
+ 		}
+ 
+ 		link->stream_name = link->name;
+-		link->init = apq8016_sbc_dai_init;
+ 		link++;
+ 	}
+ 
+@@ -209,40 +274,121 @@ static const struct snd_soc_dapm_widget apq8016_sbc_dapm_widgets[] = {
+ 	SND_SOC_DAPM_MIC("Digital Mic2", NULL),
+ };
+ 
+-static int apq8016_sbc_platform_probe(struct platform_device *pdev)
++static int apq8016_sbc_bind(struct device *dev)
+ {
+-	struct device *dev = &pdev->dev;
+ 	struct snd_soc_card *card;
+ 	struct apq8016_sbc_data *data;
+-	struct resource *res;
++	struct resource res;
+ 
+-	card = devm_kzalloc(dev, sizeof(*card), GFP_KERNEL);
++	card = kzalloc(sizeof(*card), GFP_KERNEL);
+ 	if (!card)
+ 		return -ENOMEM;
+ 
++
+ 	card->dev = dev;
+ 	card->dapm_widgets = apq8016_sbc_dapm_widgets;
+ 	card->num_dapm_widgets = ARRAY_SIZE(apq8016_sbc_dapm_widgets);
+ 	data = apq8016_sbc_parse_of(card);
+ 	if (IS_ERR(data)) {
+-		dev_err(&pdev->dev, "Error resolving dai links: %ld\n",
++		dev_err(dev, "Error resolving dai links: %ld\n",
+ 			PTR_ERR(data));
+ 		return PTR_ERR(data);
+ 	}
+ 
+-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mic-iomux");
+-	data->mic_iomux = devm_ioremap_resource(dev, res);
++	of_address_to_resource(dev->of_node, 0, &res);
++	data->mic_iomux = devm_ioremap_resource(dev, &res);
+ 	if (IS_ERR(data->mic_iomux))
+ 		return PTR_ERR(data->mic_iomux);
+ 
+-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "spkr-iomux");
+-	data->spkr_iomux = devm_ioremap_resource(dev, res);
++	of_address_to_resource(dev->of_node, 1, &res);
++	data->spkr_iomux = devm_ioremap_resource(dev, &res);
+ 	if (IS_ERR(data->spkr_iomux))
+ 		return PTR_ERR(data->spkr_iomux);
+ 
++	data->card = card;
++
++	dev_set_drvdata(dev, data);
+ 	snd_soc_card_set_drvdata(card, data);
+ 
+-	return devm_snd_soc_register_card(&pdev->dev, card);
++	return snd_soc_register_card(card);
++}
++
++static void apq8016_sbc_unbind(struct device *dev)
++{
++	struct snd_soc_card *card = dev_get_drvdata(dev);
++	struct apq8016_sbc_data *data = snd_soc_card_get_drvdata(card);
++
++	component_unbind_all(dev, data);
++
++	snd_soc_unregister_card(card);
++
++	kfree(data->card);
++	kfree(data);
++
++}
++
++static const struct component_master_ops apq8016_sbc_ops = {
++	.bind = apq8016_sbc_bind,
++	.unbind = apq8016_sbc_unbind,
++};
++
++static int apq8016_compare_of(struct device *dev, void *data)
++{
++	return dev->of_node == data;
++}
++
++static void apq8016_release_of(struct device *dev, void *data)
++{
++        of_node_put(data);
++}
++
++static int add_audio_components(struct device *dev,
++				  struct component_match **matchptr)
++{
++	struct device_node *np, *platform, *cpu, *node, *dai_node;
++	
++	node = dev->of_node;
++
++	for_each_child_of_node(node, np) {
++
++		cpu = of_get_child_by_name(np, "cpu");
++		if (cpu) {
++			dai_node = of_parse_phandle(cpu, "sound-dai", 0);
++			of_node_get(dai_node);
++			component_match_add_release(dev, matchptr, apq8016_release_of,
++                                    apq8016_compare_of, dai_node);
++		}
++
++		platform = of_get_child_by_name(np, "platform");
++		if (platform) {
++			dai_node = of_parse_phandle(platform, "sound-dai", 0);
++			component_match_add_release(dev, matchptr, apq8016_release_of,
++                                    apq8016_compare_of, dai_node);
++		}
++
++	}
++
++	return 0;
++
++}
++
++static int apq8016_sbc_platform_probe(struct platform_device *pdev)
++{
++	struct component_match *match = NULL;
++	int ret;
++	
++	ret = add_audio_components(&pdev->dev, &match);
++	if (ret)
++		return ret;
++
++	return component_master_add_with_match(&pdev->dev, &apq8016_sbc_ops, match);
++}
++
++static int apq8016_sbc_platform_remove(struct platform_device *pdev)
++{
++	component_master_del(&pdev->dev, &apq8016_sbc_ops);
++
++	return 0;
+ }
+ 
+ static const struct of_device_id apq8016_sbc_device_id[]  = {
+@@ -257,6 +403,7 @@ static struct platform_driver apq8016_sbc_platform_driver = {
+ 		.of_match_table = of_match_ptr(apq8016_sbc_device_id),
+ 	},
+ 	.probe = apq8016_sbc_platform_probe,
++	.remove = apq8016_sbc_platform_remove,
+ };
+ module_platform_driver(apq8016_sbc_platform_driver);
+ 
+-- 
+2.24.1
+

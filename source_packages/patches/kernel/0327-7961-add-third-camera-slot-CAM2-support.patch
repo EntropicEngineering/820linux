@@ -1,0 +1,70 @@
+From e50027d0b97115bb7aa7d0639c9210a63cb36846 Mon Sep 17 00:00:00 2001
+From: Pradeep M <pradeep.m@intrinsyc.com>
+Date: Tue, 19 Mar 2019 18:21:10 +0530
+Subject: [PATCH 327/334] [7961] add third camera slot(CAM2) support
+
+Change-Id: I5caa8402c6162451e38277297b79e422120b7d08
+---
+ arch/arm64/boot/dts/qcom/apq8096-openq.dtsi | 31 +++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi b/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+index 1ffdccfebab9..3d6b0ca36685 100644
+--- a/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
++++ b/arch/arm64/boot/dts/qcom/apq8096-openq.dtsi
+@@ -118,6 +118,9 @@
+ 				l23 {
+ 					regulator-always-on;
+ 				};
++				l29 {
++					regulator-always-on;
++				};
+ 			};
+ 		};
+ 	};
+@@ -174,7 +177,26 @@
+ 			};
+ 		};
+ 	};
++	camera_front@3a {
++		compatible = "ovti,ov5640";
++		reg = <0x3a>;
++		enable-gpios = <&msmgpio 133 GPIO_ACTIVE_HIGH>;
++		reset-gpios = <&msmgpio 23 GPIO_ACTIVE_LOW>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&camera_front_default>;
++		clocks = <&mmcc CAMSS_MCLK2_CLK>;
++		clock-names = "xclk";
++		clock-frequency = <23880000>;
++		status = "ok";
+ 
++		port {
++			ov5640_3_ep: endpoint {
++				clock-lanes = <1>;
++				data-lanes = <0 2>;
++				remote-endpoint = <&csiphy2_ep>;
++			};
++		};
++	};
+ 	};
+ 
+ 	camss@a00000 {
+@@ -202,6 +224,15 @@
+ 			status = "ok";
+ 			};
+ 		};
++		port@2 {
++			reg = <2>;
++			csiphy2_ep: endpoint {
++				clock-lanes = <7>;
++				data-lanes = <0 1>;
++				remote-endpoint = <&ov5640_3_ep>;
++				status = "ok";
++			};
++		};
+ 
+ 	};
+ 
+-- 
+2.24.1
+

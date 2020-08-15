@@ -1,0 +1,45 @@
+From e9e5be2dfe2e7cea81229cbdd0211e07c5239385 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 1 Aug 2018 14:00:10 +0100
+Subject: [PATCH 266/334] ASoC: q6dsp: q6asm-dai: Add support to compress
+ offload
+
+Currently only MP3 is supported.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ .../devicetree/bindings/sound/qcom,q6asm.txt   | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/sound/qcom,q6asm.txt b/Documentation/devicetree/bindings/sound/qcom,q6asm.txt
+index f9c7bd8c1bc0..ee439948af6a 100644
+--- a/Documentation/devicetree/bindings/sound/qcom,q6asm.txt
++++ b/Documentation/devicetree/bindings/sound/qcom,q6asm.txt
+@@ -27,6 +27,24 @@ used by the apr service device.
+ 	Value type: <u32>
+ 	Definition: Must be 1
+ 
++== ASM DAI is subnode of "dais" and represent a dai, it includes board specific
++configuration of each dai. Must contain the following properties.
++
++- reg
++	Usage: required
++	Value type: <u32>
++	Definition: Must be dai id
++
++- compress-playback
++	Usage: Optional
++	Value type: <boolean>
++	Definition: Must be present if dai is configured as compress playback
++
++- compress-capture
++	Usage: Optional
++	Value type: <boolean>
++	Definition: Must be present if dai is configured as compress capture
++
+ = EXAMPLE
+ 
+ q6asm@7 {
+-- 
+2.24.1
+

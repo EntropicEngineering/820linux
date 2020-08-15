@@ -1,0 +1,33 @@
+From aeaf8e931596f259662dba15b8e36a07bca0ca5c Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Sun, 31 Dec 2017 14:23:11 +0000
+Subject: [PATCH 224/334] slimbus: qcom: fix incompatible pointer warning
+
+One of the pointer passed to dmam_alloc_coherent seems to be
+phys_addr_t * instead of dma_addr_t *. This address will be
+used by dma apis, so change this to proper type.
+
+Reported-by: kbuild test robot <fengguang.wu@intel.com>
+Reported-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/qcom-ctrl.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/slimbus/qcom-ctrl.c b/drivers/slimbus/qcom-ctrl.c
+index 35ad70dbfe3a..f51de1277912 100644
+--- a/drivers/slimbus/qcom-ctrl.c
++++ b/drivers/slimbus/qcom-ctrl.c
+@@ -93,7 +93,7 @@
+ 
+ struct slim_ctrl_buf {
+ 	void		*base;
+-	phys_addr_t	phy;
++	dma_addr_t	phy;
+ 	spinlock_t	lock;
+ 	int		head;
+ 	int		tail;
+-- 
+2.24.1
+

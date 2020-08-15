@@ -1,0 +1,40 @@
+From 54bd109f94ca350b274bc55f728f790335d19923 Mon Sep 17 00:00:00 2001
+From: Mahaboob Vali <mvali@intrinsyc.com>
+Date: Thu, 16 Aug 2018 12:06:13 +0530
+Subject: [PATCH 006/334] [6857] clk: qcom: gdsc: temp fix for GPU hang in
+ system resume
+
+This teporary fix is to avoid GPU hang after suspend/resume.
+The GDSCs related to GPU and MDSS system would not be restored
+properly without this temporary fix. This should be revisited
+while implementing Suspen-To-Ram.
+
+Change-Id: Ic53f2c62c83def12d0b695a2d86dd35642078aad
+---
+ drivers/clk/qcom/gdsc.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/clk/qcom/gdsc.c b/drivers/clk/qcom/gdsc.c
+index 15f4bb5efd68..109c6319866e 100644
+--- a/drivers/clk/qcom/gdsc.c
++++ b/drivers/clk/qcom/gdsc.c
+@@ -243,10 +243,12 @@ static int gdsc_disable(struct generic_pm_domain *domain)
+ 
+ 	if (sc->pwrsts & PWRSTS_OFF)
+ 		gdsc_clear_mem_on(sc);
+-
+-	ret = gdsc_toggle_logic(sc, false);
+-	if (ret)
+-		return ret;
++//	FIX ME : temporarily disabled the gdsc_toggle_logic because of the crash
++//	in Adreno GPU and MDSS. This should be enabled after revisiting the the
++//	parent clock syncronisation sequence.
++//	ret = gdsc_toggle_logic(sc, false);
++//	if (ret)
++//		return ret;
+ 
+ 	if (sc->flags & CLAMP_IO)
+ 		gdsc_assert_clamp_io(sc);
+-- 
+2.24.1
+

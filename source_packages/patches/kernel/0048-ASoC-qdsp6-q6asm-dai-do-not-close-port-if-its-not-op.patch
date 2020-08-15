@@ -1,0 +1,37 @@
+From 16e854fe92654cd90f625f4b05d7542649c5dfe5 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 4 Jul 2018 10:49:44 +0100
+Subject: [PATCH 048/334] ASoC: qdsp6: q6asm-dai: do not close port if its not
+ opened
+
+asm ports are open as part of prepare, so for use cases like
+"aplay sample.wav" were sample.wav is not present. This would
+call port close eventhough port was never opened. DSP would
+return errors for such use cases.
+
+Avoid doing this by checking the port state.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/qcom/qdsp6/q6asm-dai.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/qcom/qdsp6/q6asm-dai.c b/sound/soc/qcom/qdsp6/q6asm-dai.c
+index 1196dc7483d2..199d0fb6f90a 100644
+--- a/sound/soc/qcom/qdsp6/q6asm-dai.c
++++ b/sound/soc/qcom/qdsp6/q6asm-dai.c
+@@ -390,7 +390,9 @@ static int q6asm_dai_close(struct snd_pcm_substream *substream)
+ 	struct q6asm_dai_rtd *prtd = runtime->private_data;
+ 
+ 	if (prtd->audio_client) {
+-		q6asm_cmd(prtd->audio_client, CMD_CLOSE);
++		if (prtd->state)
++			q6asm_cmd(prtd->audio_client, CMD_CLOSE);
++
+ 		q6asm_unmap_memory_regions(substream->stream,
+ 					   prtd->audio_client);
+ 		q6asm_audio_client_free(prtd->audio_client);
+-- 
+2.24.1
+

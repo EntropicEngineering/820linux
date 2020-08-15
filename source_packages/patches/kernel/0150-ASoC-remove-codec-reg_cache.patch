@@ -1,0 +1,584 @@
+From 2282993c57722b8b43116a18aaa74f20cb72737a Mon Sep 17 00:00:00 2001
+From: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Date: Tue, 8 May 2018 03:18:38 +0000
+Subject: [PATCH 150/334] ASoC: remove codec reg_cache
+
+Codec reg_cache is legacy feature, almost all driver are now using
+common regmap, and very few driver had been used this legacy feature.
+Because of this background, it is now implemented on each
+driver internally now.
+So now, no one is using codec reg_cache. Let's remove it.
+
+Signed-off-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Reviewed-by: Charles Keepax <ckeepax@opensource.wolfsonmicro.com>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+
+Conflicts:
+	include/sound/soc.h
+	sound/soc/soc-core.c
+---
+ include/sound/soc.h   | 104 +++++++++++++++++----
+ sound/soc/Makefile    |   2 +-
+ sound/soc/soc-cache.c |  53 -----------
+ sound/soc/soc-core.c  | 207 ------------------------------------------
+ 4 files changed, 88 insertions(+), 278 deletions(-)
+ delete mode 100644 sound/soc/soc-cache.c
+
+diff --git a/include/sound/soc.h b/include/sound/soc.h
+index 662f8db93cd3..7233d3a206b2 100644
+--- a/include/sound/soc.h
++++ b/include/sound/soc.h
+@@ -471,8 +471,6 @@ int devm_snd_soc_register_component(struct device *dev,
+ void snd_soc_unregister_component(struct device *dev);
+ struct snd_soc_component *snd_soc_lookup_component(struct device *dev,
+ 						   const char *driver_name);
+-int snd_soc_cache_init(struct snd_soc_codec *codec);
+-int snd_soc_cache_exit(struct snd_soc_codec *codec);
+ 
+ int soc_new_pcm(struct snd_soc_pcm_runtime *rtd, int num);
+ #ifdef CONFIG_SND_SOC_COMPRESS
+@@ -853,11 +851,10 @@ struct snd_soc_component {
+ 	struct list_head card_aux_list; /* for auxiliary bound components */
+ 	struct list_head card_list;
+ 
+-	int num_dai;
+-
+ 	const struct snd_soc_component_driver *driver;
+ 
+ 	struct list_head dai_list;
++	int num_dai;
+ 
+ 	int (*read)(struct snd_soc_component *, unsigned int, unsigned int *);
+ 	int (*write)(struct snd_soc_component *, unsigned int, unsigned int);
+@@ -905,7 +902,6 @@ struct snd_soc_component {
+ 	int (*init)(struct snd_soc_component *component);
+ 
+ #ifdef CONFIG_DEBUG_FS
+-	void (*init_debugfs)(struct snd_soc_component *component);
+ 	const char *debugfs_prefix;
+ #endif
+ };
+@@ -929,14 +925,6 @@ struct snd_soc_codec {
+ 
+ 	struct list_head list;
+ 
+-	/* runtime */
+-	unsigned int cache_init:1; /* codec cache has been initialized */
+-
+-	/* codec IO */
+-	void *control_data; /* codec control (i2c/3wire) data */
+-	hw_write_t hw_write;
+-	void *reg_cache;
+-
+ 	/* component */
+ 	struct snd_soc_component component;
+ };
+@@ -963,10 +951,6 @@ struct snd_soc_codec_driver {
+ 	struct regmap *(*get_regmap)(struct device *);
+ 	unsigned int (*read)(struct snd_soc_codec *, unsigned int);
+ 	int (*write)(struct snd_soc_codec *, unsigned int, unsigned int);
+-	unsigned int reg_cache_size;
+-	short reg_cache_step;
+-	short reg_word_size;
+-	const void *reg_cache_default;
+ 
+ 	/* codec bias level */
+ 	int (*set_bias_level)(struct snd_soc_codec *,
+@@ -1378,6 +1362,21 @@ static inline void snd_soc_codec_init_bias_level(struct snd_soc_codec *codec,
+ 	snd_soc_dapm_init_bias_level(snd_soc_codec_get_dapm(codec), level);
+ }
+ 
++/**
++ * snd_soc_component_init_bias_level() - Initialize COMPONENT DAPM bias level
++ * @component: The COMPONENT for which to initialize the DAPM bias level
++ * @level: The DAPM level to initialize to
++ *
++ * Initializes the COMPONENT DAPM bias level. See snd_soc_dapm_init_bias_level().
++ */
++static inline void
++snd_soc_component_init_bias_level(struct snd_soc_component *component,
++				  enum snd_soc_bias_level level)
++{
++	snd_soc_dapm_init_bias_level(
++		snd_soc_component_get_dapm(component), level);
++}
++
+ /**
+  * snd_soc_dapm_get_bias_level() - Get current CODEC DAPM bias level
+  * @codec: The CODEC for which to get the DAPM bias level
+@@ -1390,6 +1389,19 @@ static inline enum snd_soc_bias_level snd_soc_codec_get_bias_level(
+ 	return snd_soc_dapm_get_bias_level(snd_soc_codec_get_dapm(codec));
+ }
+ 
++/**
++ * snd_soc_component_get_bias_level() - Get current COMPONENT DAPM bias level
++ * @component: The COMPONENT for which to get the DAPM bias level
++ *
++ * Returns: The current DAPM bias level of the COMPONENT.
++ */
++static inline enum snd_soc_bias_level
++snd_soc_component_get_bias_level(struct snd_soc_component *component)
++{
++	return snd_soc_dapm_get_bias_level(
++		snd_soc_component_get_dapm(component));
++}
++
+ /**
+  * snd_soc_codec_force_bias_level() - Set the CODEC DAPM bias level
+  * @codec: The CODEC for which to set the level
+@@ -1405,6 +1417,23 @@ static inline int snd_soc_codec_force_bias_level(struct snd_soc_codec *codec,
+ 		level);
+ }
+ 
++/**
++ * snd_soc_component_force_bias_level() - Set the COMPONENT DAPM bias level
++ * @component: The COMPONENT for which to set the level
++ * @level: The level to set to
++ *
++ * Forces the COMPONENT bias level to a specific state. See
++ * snd_soc_dapm_force_bias_level().
++ */
++static inline int
++snd_soc_component_force_bias_level(struct snd_soc_component *component,
++				   enum snd_soc_bias_level level)
++{
++	return snd_soc_dapm_force_bias_level(
++		snd_soc_component_get_dapm(component),
++		level);
++}
++
+ /**
+  * snd_soc_dapm_kcontrol_codec() - Returns the codec associated to a kcontrol
+  * @kcontrol: The kcontrol
+@@ -1418,6 +1447,19 @@ static inline struct snd_soc_codec *snd_soc_dapm_kcontrol_codec(
+ 	return snd_soc_dapm_to_codec(snd_soc_dapm_kcontrol_dapm(kcontrol));
+ }
+ 
++/**
++ * snd_soc_dapm_kcontrol_component() - Returns the component associated to a kcontrol
++ * @kcontrol: The kcontrol
++ *
++ * This function must only be used on DAPM contexts that are known to be part of
++ * a COMPONENT (e.g. in a COMPONENT driver). Otherwise the behavior is undefined.
++ */
++static inline struct snd_soc_component *snd_soc_dapm_kcontrol_component(
++	struct snd_kcontrol *kcontrol)
++{
++	return snd_soc_dapm_to_component(snd_soc_dapm_kcontrol_dapm(kcontrol));
++}
++
+ /* codec IO */
+ unsigned int snd_soc_read(struct snd_soc_codec *codec, unsigned int reg);
+ int snd_soc_write(struct snd_soc_codec *codec, unsigned int reg,
+@@ -1434,6 +1476,18 @@ static inline int snd_soc_cache_sync(struct snd_soc_codec *codec)
+ 	return regcache_sync(codec->component.regmap);
+ }
+ 
++/**
++ * snd_soc_component_cache_sync() - Sync the register cache with the hardware
++ * @component: COMPONENT to sync
++ *
++ * Note: This function will call regcache_sync()
++ */
++static inline int snd_soc_component_cache_sync(
++	struct snd_soc_component *component)
++{
++	return regcache_sync(component->regmap);
++}
++
+ /* component IO */
+ int snd_soc_component_read(struct snd_soc_component *component,
+ 	unsigned int reg, unsigned int *val);
+@@ -1455,6 +1509,8 @@ int snd_soc_component_set_sysclk(struct snd_soc_component *component,
+ int snd_soc_component_set_pll(struct snd_soc_component *component, int pll_id,
+ 			      int source, unsigned int freq_in,
+ 			      unsigned int freq_out);
++int snd_soc_component_set_jack(struct snd_soc_component *component,
++			       struct snd_soc_jack *jack, void *data);
+ 
+ #ifdef CONFIG_REGMAP
+ 
+@@ -1664,6 +1720,20 @@ struct snd_soc_dai *snd_soc_find_dai(
+ 
+ #include <sound/soc-dai.h>
+ 
++static inline
++struct snd_soc_dai *snd_soc_card_get_codec_dai(struct snd_soc_card *card,
++					       const char *dai_name)
++{
++	struct snd_soc_pcm_runtime *rtd;
++
++	list_for_each_entry(rtd, &card->rtd_list, list) {
++		if (!strcmp(rtd->codec_dai->name, dai_name))
++			return rtd->codec_dai;
++	}
++
++	return NULL;
++}
++
+ #ifdef CONFIG_DEBUG_FS
+ extern struct dentry *snd_soc_debugfs_root;
+ #endif
+diff --git a/sound/soc/Makefile b/sound/soc/Makefile
+index bf8c1e2ce0bf..cfc8e98f67a1 100644
+--- a/sound/soc/Makefile
++++ b/sound/soc/Makefile
+@@ -1,5 +1,5 @@
+ # SPDX-License-Identifier: GPL-2.0
+-snd-soc-core-objs := soc-core.o soc-dapm.o soc-jack.o soc-cache.o soc-utils.o
++snd-soc-core-objs := soc-core.o soc-dapm.o soc-jack.o soc-utils.o
+ snd-soc-core-objs += soc-pcm.o soc-io.o soc-devres.o soc-ops.o
+ snd-soc-core-$(CONFIG_SND_SOC_COMPRESS) += soc-compress.o
+ 
+diff --git a/sound/soc/soc-cache.c b/sound/soc/soc-cache.c
+deleted file mode 100644
+index 07f43356f963..000000000000
+--- a/sound/soc/soc-cache.c
++++ /dev/null
+@@ -1,53 +0,0 @@
+-/*
+- * soc-cache.c  --  ASoC register cache helpers
+- *
+- * Copyright 2009 Wolfson Microelectronics PLC.
+- *
+- * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+- *
+- *  This program is free software; you can redistribute  it and/or modify it
+- *  under  the terms of  the GNU General  Public License as published by the
+- *  Free Software Foundation;  either version 2 of the  License, or (at your
+- *  option) any later version.
+- */
+-
+-#include <sound/soc.h>
+-#include <linux/export.h>
+-#include <linux/slab.h>
+-
+-int snd_soc_cache_init(struct snd_soc_codec *codec)
+-{
+-	const struct snd_soc_codec_driver *codec_drv = codec->driver;
+-	size_t reg_size;
+-
+-	reg_size = codec_drv->reg_cache_size * codec_drv->reg_word_size;
+-
+-	if (!reg_size)
+-		return 0;
+-
+-	dev_dbg(codec->dev, "ASoC: Initializing cache for %s codec\n",
+-				codec->component.name);
+-
+-	if (codec_drv->reg_cache_default)
+-		codec->reg_cache = kmemdup(codec_drv->reg_cache_default,
+-					   reg_size, GFP_KERNEL);
+-	else
+-		codec->reg_cache = kzalloc(reg_size, GFP_KERNEL);
+-	if (!codec->reg_cache)
+-		return -ENOMEM;
+-
+-	return 0;
+-}
+-
+-/*
+- * NOTE: keep in mind that this function might be called
+- * multiple times.
+- */
+-int snd_soc_cache_exit(struct snd_soc_codec *codec)
+-{
+-	dev_dbg(codec->dev, "ASoC: Destroying cache for %s codec\n",
+-			codec->component.name);
+-	kfree(codec->reg_cache);
+-	codec->reg_cache = NULL;
+-	return 0;
+-}
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 155e5400f585..96081160fd24 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -82,98 +82,6 @@ static const char * const dmi_blacklist[] = {
+ 	NULL,	/* terminator */
+ };
+ 
+-/* returns the minimum number of bytes needed to represent
+- * a particular given value */
+-static int min_bytes_needed(unsigned long val)
+-{
+-	int c = 0;
+-	int i;
+-
+-	for (i = (sizeof val * 8) - 1; i >= 0; --i, ++c)
+-		if (val & (1UL << i))
+-			break;
+-	c = (sizeof val * 8) - c;
+-	if (!c || (c % 8))
+-		c = (c + 8) / 8;
+-	else
+-		c /= 8;
+-	return c;
+-}
+-
+-/* fill buf which is 'len' bytes with a formatted
+- * string of the form 'reg: value\n' */
+-static int format_register_str(struct snd_soc_codec *codec,
+-			       unsigned int reg, char *buf, size_t len)
+-{
+-	int wordsize = min_bytes_needed(codec->driver->reg_cache_size) * 2;
+-	int regsize = codec->driver->reg_word_size * 2;
+-	int ret;
+-
+-	/* +2 for ': ' and + 1 for '\n' */
+-	if (wordsize + regsize + 2 + 1 != len)
+-		return -EINVAL;
+-
+-	sprintf(buf, "%.*x: ", wordsize, reg);
+-	buf += wordsize + 2;
+-
+-	ret = snd_soc_read(codec, reg);
+-	if (ret < 0)
+-		memset(buf, 'X', regsize);
+-	else
+-		sprintf(buf, "%.*x", regsize, ret);
+-	buf[regsize] = '\n';
+-	/* no NUL-termination needed */
+-	return 0;
+-}
+-
+-/* codec register dump */
+-static ssize_t soc_codec_reg_show(struct snd_soc_codec *codec, char *buf,
+-				  size_t count, loff_t pos)
+-{
+-	int i, step = 1;
+-	int wordsize, regsize;
+-	int len;
+-	size_t total = 0;
+-	loff_t p = 0;
+-
+-	wordsize = min_bytes_needed(codec->driver->reg_cache_size) * 2;
+-	regsize = codec->driver->reg_word_size * 2;
+-
+-	len = wordsize + regsize + 2 + 1;
+-
+-	if (!codec->driver->reg_cache_size)
+-		return 0;
+-
+-	if (codec->driver->reg_cache_step)
+-		step = codec->driver->reg_cache_step;
+-
+-	for (i = 0; i < codec->driver->reg_cache_size; i += step) {
+-		/* only support larger than PAGE_SIZE bytes debugfs
+-		 * entries for the default case */
+-		if (p >= pos) {
+-			if (total + len >= count - 1)
+-				break;
+-			format_register_str(codec, i, buf + total, len);
+-			total += len;
+-		}
+-		p += len;
+-	}
+-
+-	total = min(total, count - 1);
+-
+-	return total;
+-}
+-
+-static ssize_t codec_reg_show(struct device *dev,
+-	struct device_attribute *attr, char *buf)
+-{
+-	struct snd_soc_pcm_runtime *rtd = dev_get_drvdata(dev);
+-
+-	return soc_codec_reg_show(rtd->codec, buf, PAGE_SIZE, 0);
+-}
+-
+-static DEVICE_ATTR(codec_reg, 0444, codec_reg_show, NULL);
+-
+ static ssize_t pmdown_time_show(struct device *dev,
+ 				struct device_attribute *attr, char *buf)
+ {
+@@ -199,7 +107,6 @@ static ssize_t pmdown_time_set(struct device *dev,
+ static DEVICE_ATTR(pmdown_time, 0644, pmdown_time_show, pmdown_time_set);
+ 
+ static struct attribute *soc_dev_attrs[] = {
+-	&dev_attr_codec_reg.attr,
+ 	&dev_attr_pmdown_time.attr,
+ 	NULL
+ };
+@@ -232,71 +139,6 @@ static const struct attribute_group *soc_dev_attr_groups[] = {
+ };
+ 
+ #ifdef CONFIG_DEBUG_FS
+-static ssize_t codec_reg_read_file(struct file *file, char __user *user_buf,
+-				   size_t count, loff_t *ppos)
+-{
+-	ssize_t ret;
+-	struct snd_soc_codec *codec = file->private_data;
+-	char *buf;
+-
+-	if (*ppos < 0 || !count)
+-		return -EINVAL;
+-
+-	buf = kmalloc(count, GFP_KERNEL);
+-	if (!buf)
+-		return -ENOMEM;
+-
+-	ret = soc_codec_reg_show(codec, buf, count, *ppos);
+-	if (ret >= 0) {
+-		if (copy_to_user(user_buf, buf, ret)) {
+-			kfree(buf);
+-			return -EFAULT;
+-		}
+-		*ppos += ret;
+-	}
+-
+-	kfree(buf);
+-	return ret;
+-}
+-
+-static ssize_t codec_reg_write_file(struct file *file,
+-		const char __user *user_buf, size_t count, loff_t *ppos)
+-{
+-	char buf[32];
+-	size_t buf_size;
+-	char *start = buf;
+-	unsigned long reg, value;
+-	struct snd_soc_codec *codec = file->private_data;
+-	int ret;
+-
+-	buf_size = min(count, (sizeof(buf)-1));
+-	if (copy_from_user(buf, user_buf, buf_size))
+-		return -EFAULT;
+-	buf[buf_size] = 0;
+-
+-	while (*start == ' ')
+-		start++;
+-	reg = simple_strtoul(start, &start, 16);
+-	while (*start == ' ')
+-		start++;
+-	ret = kstrtoul(start, 16, &value);
+-	if (ret)
+-		return ret;
+-
+-	/* Userspace has been fiddling around behind the kernel's back */
+-	add_taint(TAINT_USER, LOCKDEP_NOW_UNRELIABLE);
+-
+-	snd_soc_write(codec, reg, value);
+-	return buf_size;
+-}
+-
+-static const struct file_operations codec_reg_fops = {
+-	.open = simple_open,
+-	.read = codec_reg_read_file,
+-	.write = codec_reg_write_file,
+-	.llseek = default_llseek,
+-};
+-
+ static void soc_init_component_debugfs(struct snd_soc_component *component)
+ {
+ 	if (!component->card->debugfs_card_root)
+@@ -325,9 +167,6 @@ static void soc_init_component_debugfs(struct snd_soc_component *component)
+ 
+ 	snd_soc_dapm_debugfs_init(snd_soc_component_get_dapm(component),
+ 		component->debugfs_root);
+-
+-	if (component->init_debugfs)
+-		component->init_debugfs(component);
+ }
+ 
+ static void soc_cleanup_component_debugfs(struct snd_soc_component *component)
+@@ -335,19 +174,6 @@ static void soc_cleanup_component_debugfs(struct snd_soc_component *component)
+ 	debugfs_remove_recursive(component->debugfs_root);
+ }
+ 
+-static void soc_init_codec_debugfs(struct snd_soc_component *component)
+-{
+-	struct snd_soc_codec *codec = snd_soc_component_to_codec(component);
+-	struct dentry *debugfs_reg;
+-
+-	debugfs_reg = debugfs_create_file("codec_reg", 0644,
+-					  codec->component.debugfs_root,
+-					  codec, &codec_reg_fops);
+-	if (!debugfs_reg)
+-		dev_warn(codec->dev,
+-			"ASoC: Failed to create codec register debugfs file\n");
+-}
+-
+ static int codec_list_show(struct seq_file *m, void *v)
+ {
+ 	struct snd_soc_codec *codec;
+@@ -431,8 +257,6 @@ static void snd_soc_debugfs_exit(void)
+ 
+ #else
+ 
+-#define soc_init_codec_debugfs NULL
+-
+ static inline void soc_init_component_debugfs(
+ 	struct snd_soc_component *component)
+ {
+@@ -1805,24 +1629,6 @@ static void soc_remove_aux_devices(struct snd_soc_card *card)
+ 	}
+ }
+ 
+-static int snd_soc_init_codec_cache(struct snd_soc_codec *codec)
+-{
+-	int ret;
+-
+-	if (codec->cache_init)
+-		return 0;
+-
+-	ret = snd_soc_cache_init(codec);
+-	if (ret < 0) {
+-		dev_err(codec->dev,
+-			"ASoC: Failed to set cache compression type: %d\n",
+-			ret);
+-		return ret;
+-	}
+-	codec->cache_init = 1;
+-	return 0;
+-}
+-
+ /**
+  * snd_soc_runtime_set_dai_fmt() - Change DAI link format for a ASoC runtime
+  * @rtd: The runtime for which the DAI link format should be changed
+@@ -2045,7 +1851,6 @@ EXPORT_SYMBOL_GPL(snd_soc_set_dmi_name);
+ 
+ static int snd_soc_instantiate_card(struct snd_soc_card *card)
+ {
+-	struct snd_soc_codec *codec;
+ 	struct snd_soc_pcm_runtime *rtd;
+ 	struct snd_soc_dai_link *dai_link;
+ 	int ret, i, order;
+@@ -2071,15 +1876,6 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
+ 	for (i = 0; i < card->num_links; i++)
+ 		snd_soc_add_dai_link(card, card->dai_link+i);
+ 
+-	/* initialize the register cache for each available codec */
+-	list_for_each_entry(codec, &codec_list, list) {
+-		if (codec->cache_init)
+-			continue;
+-		ret = snd_soc_init_codec_cache(codec);
+-		if (ret < 0)
+-			goto base_error;
+-	}
+-
+ 	/* card bind complete so register a sound card */
+ 	ret = snd_card_new(card->dev, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1,
+ 			card->owner, 0, &card->snd_card);
+@@ -3591,10 +3387,8 @@ int snd_soc_register_codec(struct device *dev,
+ 		dapm->set_bias_level = snd_soc_codec_set_bias_level;
+ 	codec->dev = dev;
+ 	codec->driver = codec_drv;
+-	codec->component.val_bytes = codec_drv->reg_word_size;
+ 
+ #ifdef CONFIG_DEBUG_FS
+-	codec->component.init_debugfs = soc_init_codec_debugfs;
+ 	codec->component.debugfs_prefix = "codec";
+ #endif
+ 
+@@ -3658,7 +3452,6 @@ void snd_soc_unregister_codec(struct device *dev)
+ 			codec->component.name);
+ 
+ 	snd_soc_component_cleanup(&codec->component);
+-	snd_soc_cache_exit(codec);
+ 	kfree(codec);
+ }
+ EXPORT_SYMBOL_GPL(snd_soc_unregister_codec);
+-- 
+2.24.1
+

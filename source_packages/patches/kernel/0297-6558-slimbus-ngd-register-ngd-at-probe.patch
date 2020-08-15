@@ -1,0 +1,34 @@
+From 6a7bed01268bdba9a536609acec950d8bb26003b Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Sat, 8 Sep 2018 14:52:00 +0100
+Subject: [PATCH 297/334] [6558] slimbus: ngd: register ngd at probe
+
+Change-Id: Ia80c2af0eac89ffc7c3d3f1e6957f77e8f57644a
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ drivers/slimbus/qcom-ngd-ctrl.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/slimbus/qcom-ngd-ctrl.c b/drivers/slimbus/qcom-ngd-ctrl.c
+index 8ab1b3414467..57b6e095b1e9 100644
+--- a/drivers/slimbus/qcom-ngd-ctrl.c
++++ b/drivers/slimbus/qcom-ngd-ctrl.c
+@@ -1341,7 +1341,6 @@ static int of_qcom_slim_ngd_register(struct device *parent,
+ 		ngd->base = ctrl->base + ngd->id * data->offset +
+ 					(ngd->id - 1) * data->size;
+ 		ctrl->ngd = ngd;
+-		platform_driver_register(&qcom_slim_ngd_driver);
+ 
+ 		platform_device_add(ngd->pdev);
+ 		return 0;
+@@ -1441,6 +1440,7 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
+ 	init_completion(&ctrl->reconf);
+ 	init_completion(&ctrl->qmi.qmi_comp);
+ 
++	platform_driver_register(&qcom_slim_ngd_driver);
+ 	return of_qcom_slim_ngd_register(dev, ctrl);
+ }
+ 
+-- 
+2.24.1
+

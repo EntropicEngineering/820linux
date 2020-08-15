@@ -1,0 +1,26 @@
+From d315e0e4c53e979ed1efb77e74931ff85b895247 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Wed, 11 Jul 2018 12:36:59 +0100
+Subject: [PATCH 193/334] ASoc: core: increase component name size
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+---
+ sound/soc/soc-core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/soc-core.c b/sound/soc/soc-core.c
+index 61a610203283..61e69d439b3e 100644
+--- a/sound/soc/soc-core.c
++++ b/sound/soc/soc-core.c
+@@ -43,7 +43,7 @@
+ #define CREATE_TRACE_POINTS
+ #include <trace/events/asoc.h>
+ 
+-#define NAME_SIZE	32
++#define NAME_SIZE	64
+ 
+ #ifdef CONFIG_DEBUG_FS
+ struct dentry *snd_soc_debugfs_root;
+-- 
+2.24.1
+

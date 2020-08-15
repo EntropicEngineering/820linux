@@ -1,0 +1,72 @@
+From 85f4bdc3b6605f999827f8b3f7a688ec5ef8f0e3 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Fri, 25 May 2018 14:50:36 +0100
+Subject: [PATCH 260/334] regmap: add missing prototype for devm_init_slimbus
+
+For some reason the devm variant of slimbus init is not added
+into the header eventhough this __devm_regmap_init_slimbus()
+is an exported function.
+
+This patch adds this. This also fixes below warning in regmap-slimbus.c
+regmap-slimbus.c:65:15: warning: symbol '__devm_regmap_init_slimbus'
+ was not declared. Should it be static?
+regmap-slimbus.c:65:16: warning: no previous prototype for
+ '__devm_regmap_init_slimbus' [-Wmissing-prototypes]
+
+Fixes: 7d6f7fb053ad ("regmap: add SLIMbus support")
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+
+Conflicts:
+	include/linux/regmap.h
+---
+ include/linux/regmap.h | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/regmap.h b/include/linux/regmap.h
+index 5a22822b38ca..47e9c0bfa059 100644
+--- a/include/linux/regmap.h
++++ b/include/linux/regmap.h
+@@ -22,6 +22,7 @@
+ #include <linux/lockdep.h>
+ 
+ struct module;
++struct clk;
+ struct device;
+ struct i2c_client;
+ struct irq_domain;
+@@ -517,7 +518,10 @@ struct regmap *__devm_regmap_init_ac97(struct snd_ac97 *ac97,
+ 				       const struct regmap_config *config,
+ 				       struct lock_class_key *lock_key,
+ 				       const char *lock_name);
+-
++struct regmap *__devm_regmap_init_slimbus(struct slim_device *slimbus,
++				 const struct regmap_config *config,
++				 struct lock_class_key *lock_key,
++				 const char *lock_name);
+ /*
+  * Wrapper for regmap_init macros to include a unique lockdep key and name
+  * for each call. No-op if CONFIG_LOCKDEP is not set.
+@@ -808,6 +812,19 @@ bool regmap_ac97_default_volatile(struct device *dev, unsigned int reg);
+ 	__regmap_lockdep_wrapper(__devm_regmap_init_ac97, #config,	\
+ 				ac97, config)
+ 
++/**
++ * devm_regmap_init_slimbus() - Initialise managed register map
++ *
++ * @slimbus: Device that will be interacted with
++ * @config: Configuration for register map
++ *
++ * The return value will be an ERR_PTR() on error or a valid pointer
++ * to a struct regmap. The regmap will be automatically freed by the
++ * device management code.
++ */
++#define devm_regmap_init_slimbus(slimbus, config)			\
++	__regmap_lockdep_wrapper(__devm_regmap_init_slimbus, #config,	\
++				slimbus, config)
+ void regmap_exit(struct regmap *map);
+ int regmap_reinit_cache(struct regmap *map,
+ 			const struct regmap_config *config);
+-- 
+2.24.1
+

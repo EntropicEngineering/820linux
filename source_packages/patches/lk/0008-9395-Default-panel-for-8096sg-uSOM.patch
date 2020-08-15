@@ -1,0 +1,28 @@
+From 86c68f4abd10d12bff9d6fc9d90781065fb3f905 Mon Sep 17 00:00:00 2001
+From: KNight Weng <kweng@intrinsyc.com>
+Date: Tue, 11 Jun 2019 15:29:07 +0800
+Subject: [PATCH 08/10] [9395] Default panel for 8096sg uSOM
+
+Cherry-pick from #14153
+
+Change-Id: I1db3f6f1d2ea3c79ea3ce86556f5c83643ffba24
+---
+ target/msm8996/oem_panel.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/target/msm8996/oem_panel.c b/target/msm8996/oem_panel.c
+index 63fa598e..210c8b4c 100644
+--- a/target/msm8996/oem_panel.c
++++ b/target/msm8996/oem_panel.c
+@@ -737,7 +737,7 @@ int oem_panel_select(const char *panel_name, struct panel_struct *panelstruct,
+ 		panel_id = JDI_4K_DUALDSI_VIDEO_NOFBC_PANEL;
+ 		break;
+ 	case HW_PLATFORM_DRAGON:
+-		if (platform_is_apq8096_microsom820()) {
++		if (platform_is_apq8096_microsom820() || platform_is_apq8096sg_microsom820()) {
+ 			panel_id = JD9161_WVGA_VIDEO_PANEL;
+ 		} else {
+ 			gpio_tlmm_config(81, 0, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_2MA, GPIO_ENABLE);
+-- 
+2.24.1
+

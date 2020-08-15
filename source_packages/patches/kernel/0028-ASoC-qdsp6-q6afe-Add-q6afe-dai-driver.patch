@@ -1,0 +1,156 @@
+From 025339ec336cb379f9f1880e722e9a616717b574 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Fri, 18 May 2018 13:56:07 +0100
+Subject: [PATCH 028/334] ASoC: qdsp6: q6afe: Add q6afe dai driver
+
+This patch adds support to q6afe backend dais driver.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-and-tested-by: Rohit kumar <rohitkr@codeaurora.org>
+Reviewed-by: Banajit Goswami <bgoswami@codeaurora.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+
+Conflicts:
+	sound/soc/qcom/qdsp6/q6afe-dai.c
+---
+ sound/soc/qcom/Kconfig           |  4 ++++
+ sound/soc/qcom/qdsp6/Makefile    |  1 +
+ sound/soc/qcom/qdsp6/q6afe-dai.c | 33 +++++++++++---------------------
+ 3 files changed, 16 insertions(+), 22 deletions(-)
+
+diff --git a/sound/soc/qcom/Kconfig b/sound/soc/qcom/Kconfig
+index 43f9ed85efa8..d3523a30d942 100644
+--- a/sound/soc/qcom/Kconfig
++++ b/sound/soc/qcom/Kconfig
+@@ -50,6 +50,9 @@ config SND_SOC_QDSP6_CORE
+ config SND_SOC_QDSP6_AFE
+ 	tristate
+ 
++config SND_SOC_QDSP6_AFE_DAI
++	tristate
++
+ config SND_SOC_QDSP6_ADM
+ 	tristate
+ 
+@@ -65,6 +68,7 @@ config SND_SOC_QDSP6
+ 	select SND_SOC_QDSP6_COMMON
+ 	select SND_SOC_QDSP6_CORE
+ 	select SND_SOC_QDSP6_AFE
++	select SND_SOC_QDSP6_AFE_DAI
+ 	select SND_SOC_QDSP6_ADM
+ 	select SND_SOC_QDSP6_ROUTING
+ 	select SND_SOC_QDSP6_ASM
+diff --git a/sound/soc/qcom/qdsp6/Makefile b/sound/soc/qcom/qdsp6/Makefile
+index 0e8e2febb7ec..bada1aa303c2 100644
+--- a/sound/soc/qcom/qdsp6/Makefile
++++ b/sound/soc/qcom/qdsp6/Makefile
+@@ -1,6 +1,7 @@
+ obj-$(CONFIG_SND_SOC_QDSP6_COMMON) += q6dsp-common.o
+ obj-$(CONFIG_SND_SOC_QDSP6_CORE) += q6core.o
+ obj-$(CONFIG_SND_SOC_QDSP6_AFE) += q6afe.o
++obj-$(CONFIG_SND_SOC_QDSP6_AFE_DAI) += q6afe-dai.o
+ obj-$(CONFIG_SND_SOC_QDSP6_ADM) += q6adm.o
+ obj-$(CONFIG_SND_SOC_QDSP6_ROUTING) += q6routing.o
+ obj-$(CONFIG_SND_SOC_QDSP6_ASM) += q6asm.o
+diff --git a/sound/soc/qcom/qdsp6/q6afe-dai.c b/sound/soc/qcom/qdsp6/q6afe-dai.c
+index be0679e771e2..4378e29a95c5 100644
+--- a/sound/soc/qcom/qdsp6/q6afe-dai.c
++++ b/sound/soc/qcom/qdsp6/q6afe-dai.c
+@@ -1,5 +1,5 @@
+ // SPDX-License-Identifier: GPL-2.0
+-// Copyright (c) 2011-2016, The Linux Foundation
++// Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
+ // Copyright (c) 2018, Linaro Limited
+ 
+ #include <linux/err.h>
+@@ -306,11 +306,8 @@ static struct snd_soc_dai_ops q6slim_ops = {
+ static int msm_dai_q6_dai_probe(struct snd_soc_dai *dai)
+ {
+ 	struct q6afe_dai_data *dai_data = dev_get_drvdata(dai->dev);
+-	struct snd_soc_dapm_context *dapm;
+ 	struct q6afe_port *port;
+ 
+-	dapm = snd_soc_component_get_dapm(dai->component);
+-
+ 	port = q6afe_port_get_from_id(dai->dev, dai->id);
+ 	if (IS_ERR(port)) {
+ 		dev_err(dai->dev, "Unable to get afe port\n");
+@@ -664,7 +661,6 @@ static void of_q6afe_parse_dai_data(struct device *dev,
+ 	for_each_child_of_node(dev->of_node, node) {
+ 		unsigned int lines[Q6AFE_MAX_MI2S_LINES];
+ 		struct q6afe_dai_priv_data *priv;
+-		const char *if_type;
+ 		int id, i, num_lines;
+ 
+ 		ret = of_property_read_u32(node, "reg", &id);
+@@ -673,15 +669,13 @@ static void of_q6afe_parse_dai_data(struct device *dev,
+ 			continue;
+ 		}
+ 
+-		if (of_property_read_string(node, "interface-type", &if_type))
+-			continue;
+-
+-		priv = &data->priv[id];
+-
++		switch (id) {
+ 		/* MI2S specific properties */
+-		if (!strcmp(if_type, "mi2s")) {
++		case PRIMARY_MI2S_RX ... QUATERNARY_MI2S_TX:
++			priv = &data->priv[id];
+ 			ret = of_property_read_variable_u32_array(node,
+-							"qcom,sd-lines", lines, 0,
++							"qcom,sd-lines",
++							lines, 0,
+ 							Q6AFE_MAX_MI2S_LINES);
+ 			if (ret < 0)
+ 				num_lines = 0;
+@@ -692,6 +686,10 @@ static void of_q6afe_parse_dai_data(struct device *dev,
+ 
+ 			for (i = 0; i < num_lines; i++)
+ 				priv->sd_line_mask |= BIT(lines[i]);
++
++			break;
++		default:
++			break;
+ 		}
+ 	}
+ }
+@@ -699,11 +697,10 @@ static void of_q6afe_parse_dai_data(struct device *dev,
+ static int q6afe_dai_bind(struct device *dev, struct device *master, void *data)
+ {
+ 	struct q6afe_dai_data *dai_data;
+-	int rc = 0;
+ 
+ 	dai_data = kzalloc(sizeof(*dai_data), GFP_KERNEL);
+ 	if (!dai_data)
+-		rc = -ENOMEM;
++		return -ENOMEM;
+ 
+ 	dev_set_drvdata(dev, dai_data);
+ 
+@@ -738,22 +735,14 @@ static int q6afe_dai_dev_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static const struct of_device_id q6afe_dai_of_match[] = {
+-	{ .compatible = "qcom,q6afe-dai"},
+-	{ },
+-};
+-MODULE_DEVICE_TABLE(of, q6afe_dai_of_match);
+-
+ static struct platform_driver q6afe_dai_platform_driver = {
+ 	.driver = {
+ 		.name = "q6afe-dai",
+-		.of_match_table = q6afe_dai_of_match,
+ 	},
+ 	.probe = q6afe_dai_dev_probe,
+ 	.remove = q6afe_dai_dev_remove,
+ };
+ module_platform_driver(q6afe_dai_platform_driver);
+ 
+-MODULE_ALIAS("platform:q6afe-dai");
+ MODULE_DESCRIPTION("Q6 Audio Fronend dai driver");
+ MODULE_LICENSE("GPL v2");
+-- 
+2.24.1
+

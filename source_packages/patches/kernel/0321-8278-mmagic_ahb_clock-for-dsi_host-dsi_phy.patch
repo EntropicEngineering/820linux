@@ -1,0 +1,134 @@
+From a665bd5c317279aed340ebad77339d79bf83e6d4 Mon Sep 17 00:00:00 2001
+From: Ganesh Biradar <gbiradar@intrinsyc.com>
+Date: Wed, 16 Jan 2019 09:56:32 +0530
+Subject: [PATCH 321/334] [8278] mmagic_ahb_clock for dsi_host & dsi_phy
+
+Change-Id: I24f9b69d433f3cf61a5d9d3429bc9677bd153839
+Signed-off-by: Ganesh Biradar <gbiradar@intrinsyc.com>
+(cherry picked from commit d05bef6413f0b34de145166ddc264a7051ef9b15)
+---
+ drivers/gpu/drm/msm/dsi/dsi_cfg.c     |  2 +-
+ drivers/gpu/drm/msm/dsi/dsi_host.c    | 18 +++++++++++++++++-
+ drivers/gpu/drm/msm/dsi/phy/dsi_phy.c | 16 ++++++++++++++++
+ drivers/gpu/drm/msm/dsi/phy/dsi_phy.h |  1 +
+ 4 files changed, 35 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_cfg.c b/drivers/gpu/drm/msm/dsi/dsi_cfg.c
+index 65c1dfbbe019..5d0d0317bbcd 100644
+--- a/drivers/gpu/drm/msm/dsi/dsi_cfg.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_cfg.c
+@@ -99,7 +99,7 @@ static const struct msm_dsi_config msm8994_dsi_cfg = {
+  * without it too. Figure out why it doesn't enable and uncomment below
+  */
+ static const char * const dsi_8996_bus_clk_names[] = {
+-	"mdp_core", "iface", "bus", /* "core_mmss", */
++	"mdp_core", "mmagic_iface", "iface", "bus", /* "core_mmss", */
+ };
+ 
+ static const struct msm_dsi_config msm8996_dsi_cfg = {
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+index 30e2472bc847..96cf1f9c2b89 100644
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -204,7 +204,7 @@ static const struct msm_dsi_cfg_handler *dsi_get_config(
+ 	const struct msm_dsi_cfg_handler *cfg_hnd = NULL;
+ 	struct device *dev = &msm_host->pdev->dev;
+ 	struct regulator *gdsc_reg;
+-	struct clk *ahb_clk;
++	struct clk *ahb_clk, *mmagic_ahb_clk;
+ 	int ret;
+ 	u32 major = 0, minor = 0;
+ 
+@@ -220,6 +220,12 @@ static const struct msm_dsi_cfg_handler *dsi_get_config(
+ 		goto put_gdsc;
+ 	}
+ 
++	mmagic_ahb_clk = clk_get(dev, "mmagic_iface_clk");
++	if (IS_ERR(mmagic_ahb_clk)) {
++		DBG("cannot get mmagic interface clock");
++		mmagic_ahb_clk = NULL;
++	}
++
+ 	pm_runtime_get_sync(dev);
+ 
+ 	ret = regulator_enable(gdsc_reg);
+@@ -228,6 +234,14 @@ static const struct msm_dsi_cfg_handler *dsi_get_config(
+ 		goto put_clk;
+ 	}
+ 
++	if (mmagic_ahb_clk) {
++		ret = clk_prepare_enable(mmagic_ahb_clk);
++		if (ret) {
++			pr_err("%s: unable to enable mmagic_ahb_clk\n", __func__);
++			goto disable_gdsc;
++		}
++	}
++
+ 	ret = clk_prepare_enable(ahb_clk);
+ 	if (ret) {
+ 		pr_err("%s: unable to enable ahb_clk\n", __func__);
+@@ -246,6 +260,8 @@ static const struct msm_dsi_cfg_handler *dsi_get_config(
+ 
+ disable_clks:
+ 	clk_disable_unprepare(ahb_clk);
++	if (mmagic_ahb_clk)
++		clk_disable_unprepare(mmagic_ahb_clk);
+ disable_gdsc:
+ 	regulator_disable(gdsc_reg);
+ 	pm_runtime_put_sync(dev);
+diff --git a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c
+index 790ca280cbfd..e1141aecc908 100644
+--- a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c
++++ b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c
+@@ -361,6 +361,14 @@ static int dsi_phy_enable_resource(struct msm_dsi_phy *phy)
+ 
+ 	pm_runtime_get_sync(dev);
+ 
++	if (phy->mmagic_ahb_clk) {
++		ret = clk_prepare_enable(phy->mmagic_ahb_clk);
++		if (ret) {
++			dev_err(dev, "%s: can't enable mmagic_ahb_clk, %d\n", __func__, ret);
++			pm_runtime_put_sync(dev);
++		}
++	}
++
+ 	ret = clk_prepare_enable(phy->ahb_clk);
+ 	if (ret) {
+ 		dev_err(dev, "%s: can't enable ahb clk, %d\n", __func__, ret);
+@@ -373,6 +381,8 @@ static int dsi_phy_enable_resource(struct msm_dsi_phy *phy)
+ static void dsi_phy_disable_resource(struct msm_dsi_phy *phy)
+ {
+ 	clk_disable_unprepare(phy->ahb_clk);
++	if (phy->mmagic_ahb_clk)
++		clk_disable_unprepare(phy->mmagic_ahb_clk);
+ 	pm_runtime_put_autosuspend(&phy->pdev->dev);
+ }
+ 
+@@ -489,6 +499,12 @@ static int dsi_phy_driver_probe(struct platform_device *pdev)
+ 		goto fail;
+ 	}
+ 
++	phy->mmagic_ahb_clk = msm_clk_get(pdev, "mmagic_iface");
++	if (IS_ERR(phy->mmagic_ahb_clk)) {
++		DBG("didn't get mmagic ahb clk");
++		phy->mmagic_ahb_clk = NULL;
++	}
++
+ 	if (phy->cfg->ops.init) {
+ 		ret = phy->cfg->ops.init(phy);
+ 		if (ret)
+diff --git a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
+index 1733f6608a09..f30be65401ca 100644
+--- a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
++++ b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
+@@ -82,6 +82,7 @@ struct msm_dsi_phy {
+ 	int id;
+ 
+ 	struct clk *ahb_clk;
++	struct clk *mmagic_ahb_clk;
+ 	struct regulator_bulk_data supplies[DSI_DEV_REGULATOR_MAX];
+ 
+ 	struct msm_dsi_dphy_timing timing;
+-- 
+2.24.1
+

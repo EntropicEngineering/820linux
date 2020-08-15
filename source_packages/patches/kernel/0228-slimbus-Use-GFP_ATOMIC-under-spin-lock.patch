@@ -1,0 +1,30 @@
+From b653193cd57e19fd4ae928cde008f850dd79159c Mon Sep 17 00:00:00 2001
+From: Wei Yongjun <weiyongjun1@huawei.com>
+Date: Tue, 2 Jan 2018 17:54:22 +0000
+Subject: [PATCH 228/334] slimbus: Use GFP_ATOMIC under spin lock
+
+A spin lock is taken here so we should use GFP_ATOMIC.
+
+Signed-off-by: Wei Yongjun <weiyongjun1@huawei.com>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/slimbus/messaging.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index 8b2c77f516b9..a9a6dc4af0da 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -98,7 +98,7 @@ int slim_do_transfer(struct slim_controller *ctrl, struct slim_msg_txn *txn)
+ 	if (need_tid) {
+ 		spin_lock_irqsave(&ctrl->txn_lock, flags);
+ 		tid = idr_alloc(&ctrl->tid_idr, txn, 0,
+-				SLIM_MAX_TIDS, GFP_KERNEL);
++				SLIM_MAX_TIDS, GFP_ATOMIC);
+ 		txn->tid = tid;
+ 
+ 		if (!txn->msg->comp)
+-- 
+2.24.1
+
