@@ -61,8 +61,8 @@ _linaro_manifest=${_linaro_toolchain_name}/gcc-linaro-7.5.0-2019.12-linux-manife
 _linaro_initramfs_img=initrd.img-4.14.0-qcomlt-arm64
 
 
-#linaro rootfs build number (Latest as of Aug 14 2020 is 694)
-_linaro_build_id=694
+#linaro rootfs build number (Latest as of Oct 13 2020 is 700)
+_linaro_build_id=700
 
 #linaro kernel build number (Latest build with kernel 4.14 to remain compatible with Entropic & ITC patches)
 _linaro_kernel_build_id=423
