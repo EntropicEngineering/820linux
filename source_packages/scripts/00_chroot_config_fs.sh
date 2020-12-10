@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # chroot_config_fs.sh declarations
-_hostname=EntropicDK-700
+_hostname=EntropicDK-727
 _hostfile0=/etc/hostname
 _hostfile1=/etc/hosts
 _source_list=/etc/apt/sources.list
