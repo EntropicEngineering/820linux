@@ -590,7 +590,7 @@ create_flashall()
 	echo -e "echo -e \"Erasing the boot partition\" " >> ${_flash_script}
 	echo -e "fastboot erase boot" >> ${_flash_script}
 	echo -e "echo -e \"Flashing the boot-linaro-${_linaro_build_id}.img\" " >> ${_flash_script}
-	echo -e "fastboot flash boot boot-linaro-${_linaro_build_id}.img" >> ${_flash_script}
+	echo -e "fastboot flash:raw boot boot-linaro-${_linaro_build_id}.img" >> ${_flash_script}
 	echo -e "echo -e \"Erasing the userdata(rootfs) partition\" " >> ${_flash_script}
 	echo -e "if [ ! -f rootfs-${_bversion}-linaro-${_linaro_build_id}.img ]; then" >> ${_flash_script}
 	echo -e "\tgunzip -k rootfs-${_bversion}-linaro-${_linaro_build_id}.img.gz" >> ${_flash_script}
